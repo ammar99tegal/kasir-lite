@@ -498,7 +498,7 @@ function KasirMain({user,outlet,products,stocks,shift,onAddTrx,onTutupShift,onLo
           style={{background:"rgba(220,38,38,.8)",border:"none",borderRadius:10,padding:"7px 12px",color:"#fff",fontWeight:800,fontSize:11,cursor:"pointer"}}>
           🔴 Tutup
         </button>
-        <button onClick={onLogout} style={{background:"rgba(255,255,255,.15)",border:"none",borderRadius:10,padding:"7px 10px",color:"#fff",fontWeight:700,fontSize:11,cursor:"pointer"}}>
+        <button onClick={()=>setScene("pilih_outlet")} style={{background:"rgba(255,255,255,.15)",border:"none",borderRadius:10,padding:"7px 10px",color:"#fff",fontWeight:700,fontSize:11,cursor:"pointer"}}>
           ← Menu
         </button>
       </div>
@@ -744,9 +744,11 @@ export default function KasirLite(){
 
   const handlePilihOutlet=useCallback((o)=>{
     setOutlet(o);
+    // Kalau shift sudah aktif, langsung ke main
+    if(shift||bankShift){ setScene("main"); return; }
     if(user?.role==="bank") setScene("buka_shift_bank");
     else setScene("buka_shift");
-  },[user]);
+  },[user,shift,bankShift]);
 
   const handleBukaShiftKasir=useCallback(async(data)=>{
     const s={id:uid(),nama:data.namaShift,start:now(),outletId:outlet.id,...data};
@@ -830,12 +832,22 @@ export default function KasirLite(){
     <div style={{minHeight:"100vh",background:`linear-gradient(135deg,${C.primaryDark},${C.primary})`,display:"flex",alignItems:"center",justifyContent:"center",padding:20}}>
       <style>{css}</style>
       <div style={{background:C.white,borderRadius:20,padding:24,width:"100%",maxWidth:380}}>
-        <div style={{fontWeight:900,fontSize:17,marginBottom:16,color:C.primaryDark}}>Pilih Outlet</div>
+        <div style={{fontWeight:900,fontSize:17,marginBottom:4,color:C.primaryDark}}>Pilih Outlet</div>
+        <div style={{fontSize:11,color:C.muted,marginBottom:16}}>Login sebagai: <b>{user?.username}</b></div>
+        {(shift||bankShift)&&(
+          <div style={{background:"#f0fdf4",border:"2px solid #86efac",borderRadius:10,padding:"8px 12px",marginBottom:12,fontSize:12,color:"#16a34a",fontWeight:700}}>
+            ✅ Shift aktif — pilih outlet untuk lanjutkan
+          </div>
+        )}
         {outlets.map(o=>(
           <button key={o.id} onClick={()=>handlePilihOutlet(o)} style={{...btn(C.primaryLight,C.primaryDark,{marginBottom:8,textAlign:"left",border:`2px solid ${C.border}`})}}>
             🏪 {o.nama}
           </button>
         ))}
+        <button onClick={()=>{ setUser(null); setShift(null); setBankShift(null); setScene("login"); }}
+          style={{...btn("#fff0f0",C.danger,{border:`2px solid #fca5a5`,marginTop:8})}}>
+          Logout
+        </button>
       </div>
     </div>
   );
