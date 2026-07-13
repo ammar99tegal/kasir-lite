@@ -698,15 +698,30 @@ export default function KasirLite(){
   const [loading, setLoading] = useState(true);
   const [dbErr,   setDbErr]   = useState("");
 
-  const [user,    setUser]    = useState(null);
-  const [outlet,  setOutlet]  = useState(null);
-  const [shift,   setShift]   = useState(null); // kasir shift
-  const [bankShift,setBankShift]=useState(null); // bank shift
+  // Restore session dari localStorage saat refresh
+  const [user,    setUser]    = useState(()=>{ try{ const s=localStorage.getItem('klite_user'); return s?JSON.parse(s):null; }catch{ return null; }});
+  const [outlet,  setOutlet]  = useState(()=>{ try{ const s=localStorage.getItem('klite_outlet'); return s?JSON.parse(s):null; }catch{ return null; }});
+  const [shift,   setShift]   = useState(()=>{ try{ const s=localStorage.getItem('klite_shift'); return s?JSON.parse(s):null; }catch{ return null; }});
+  const [bankShift,setBankShift]=useState(()=>{ try{ const s=localStorage.getItem('klite_bankshift'); return s?JSON.parse(s):null; }catch{ return null; }});
   const [bankTrxList,setBankTrxList]=useState([]);
-  const [scene,   setScene]   = useState("login"); // login|pilih_outlet|buka_shift|buka_shift_bank|main
+  const [scene,   setScene]   = useState(()=>{
+    try{
+      const u=localStorage.getItem('klite_user');
+      const o=localStorage.getItem('klite_outlet');
+      if(u&&o) return "main";
+      if(u) return "pilih_outlet";
+    }catch{}
+    return "login";
+  });
 
-  const isGabungan = user?.role==="bank" || user?.role==="staff"; // kasir+bank 1 laci
-  const isKasirOnly = user?.role==="kasir" || user?.role==="karyawan"; // kasir saja
+  const isGabungan = user?.role==="bank" || user?.role==="staff";
+  const isKasirOnly = user?.role==="kasir" || user?.role==="karyawan";
+
+  // Simpan session ke localStorage setiap berubah
+  useEffect(()=>{ try{ if(user) localStorage.setItem('klite_user',JSON.stringify(user)); else localStorage.removeItem('klite_user'); }catch{} },[user]);
+  useEffect(()=>{ try{ if(outlet) localStorage.setItem('klite_outlet',JSON.stringify(outlet)); else localStorage.removeItem('klite_outlet'); }catch{} },[outlet]);
+  useEffect(()=>{ try{ if(shift) localStorage.setItem('klite_shift',JSON.stringify(shift)); else localStorage.removeItem('klite_shift'); }catch{} },[shift]);
+  useEffect(()=>{ try{ if(bankShift) localStorage.setItem('klite_bankshift',JSON.stringify(bankShift)); else localStorage.removeItem('klite_bankshift'); }catch{} },[bankShift]);
 
   // ── Load data awal ──────────────────────────────────────────────────────────
   useEffect(()=>{
@@ -723,11 +738,14 @@ export default function KasirLite(){
           db.getProducts().catch(()=>[]),
           db.getOutlets().catch(()=>[]),
           db.getStocks().catch(()=>({})),
-          supabase.from('saldo_apps').select('*').then(r=>r.data?.map(r=>r.app_name)||[]).catch(()=>[]),
+          supabase.from('saldo_apps').select('*').then(r=>{
+            const names=(r.data||[]).map(x=>x.app_name||x.nama||x.name).filter(Boolean);
+            return names.length>0?names:DEFAULT_APPS;
+          }).catch(()=>DEFAULT_APPS),
         ]);
         clearTimeout(to);
         setUsers(usrs); setProducts(prods); setOutlets(outs); setStocks(stks);
-        if(sa.length>0) setSaldoApps(sa);
+        setSaldoApps(sa.length>0?sa:DEFAULT_APPS);
         setLoading(false);
       }catch(e){ clearTimeout(to); setDbErr("Gagal konek DB."); setLoading(false); }
     };
@@ -744,7 +762,6 @@ export default function KasirLite(){
 
   const handlePilihOutlet=useCallback((o)=>{
     setOutlet(o);
-    // Kalau shift sudah aktif, langsung ke main
     if(shift||bankShift){ setScene("main"); return; }
     if(user?.role==="bank") setScene("buka_shift_bank");
     else setScene("buka_shift");
@@ -844,7 +861,10 @@ export default function KasirLite(){
             🏪 {o.nama}
           </button>
         ))}
-        <button onClick={()=>{ setUser(null); setShift(null); setBankShift(null); setScene("login"); }}
+        <button onClick={()=>{ 
+          setUser(null); setShift(null); setBankShift(null); setOutlet(null);
+          try{ ['klite_user','klite_outlet','klite_shift','klite_bankshift'].forEach(k=>localStorage.removeItem(k)); }catch{}
+          setScene("login"); }}
           style={{...btn("#fff0f0",C.danger,{border:`2px solid #fca5a5`,marginTop:8})}}>
           Logout
         </button>
