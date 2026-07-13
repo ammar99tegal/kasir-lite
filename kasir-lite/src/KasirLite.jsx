@@ -28,6 +28,7 @@ const css = `
   input:focus{outline:none;border-color:${C.primary}!important;}
   ::-webkit-scrollbar{width:4px;height:4px}
   ::-webkit-scrollbar-thumb{background:#b2ede6;border-radius:4px}
+  html{font-size:clamp(13px,1.8vw,16px);}
 `;
 
 // ─── Toast ────────────────────────────────────────────────────────────────────
@@ -617,6 +618,13 @@ function KasirMain({user,outlet,products,stocks,prodOrder=[],aktifProds={},shift
     setPaying(false);
   };
 
+  const omsetShift = useMemo(()=>txHariIni
+    .filter(t=>t.shift_id===shift?.id)
+    .reduce((s,t)=>{
+      const rv=(t.items||[]).filter(i=>i.refunded).reduce((rs,i)=>rs+i.price*i.qty,0);
+      return s+t.total-rv;
+    },0),[txHariIni,shift?.id]);
+
   const omsetHari = useMemo(()=>txHariIni.reduce((s,t)=>{
     const rv=(t.items||[]).filter(i=>i.refunded).reduce((rs,i)=>rs+i.price*i.qty,0);
     return s+t.total-rv;
@@ -643,8 +651,8 @@ function KasirMain({user,outlet,products,stocks,prodOrder=[],aktifProds={},shift
         </div>
         {/* Omset badge */}
         <div style={{background:"rgba(255,255,255,.15)",borderRadius:10,padding:"4px 10px",textAlign:"center"}}>
-          <div style={{fontSize:9,color:"rgba(255,255,255,.7)"}}>Omset Hari Ini</div>
-          <div style={{fontWeight:900,fontSize:13,color:"#fff"}}>{fmtRp(omsetHari)}</div>
+          <div style={{fontSize:"0.65rem",color:"rgba(255,255,255,.7)"}}>Omset Shift</div>
+          <div style={{fontWeight:900,fontSize:"0.85rem",color:"#fff"}}>{fmtRp(omsetShift)}</div>
         </div>
         {/* Tutup shift */}
         <button onClick={()=>tab==="bank"?setShowTutupBank(true):setShowTutupKasir(true)}
