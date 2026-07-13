@@ -74,9 +74,9 @@ function LoginPage({users,onLogin}){
   };
 
   return(
-    <div style={{minHeight:"100vh",background:`linear-gradient(135deg,${C.primaryDark},${C.primary})`,display:"flex",alignItems:"center",justifyContent:"center",padding:20}}>
+    <div style={{minHeight:"100vh",width:"100%",background:`linear-gradient(135deg,${C.primaryDark},${C.primary})`,display:"flex",alignItems:"center",justifyContent:"center",padding:16}}>
       <style>{css}</style>
-      <div style={{background:C.white,borderRadius:20,padding:28,width:"100%",maxWidth:380,boxShadow:"0 20px 60px rgba(0,0,0,.25)",animation:"fadeUp .3s ease"}}>
+      <div style={{background:C.white,borderRadius:20,padding:28,width:"100%",maxWidth:400,boxShadow:"0 20px 60px rgba(0,0,0,.25)",animation:"fadeUp .3s ease"}}>
         <div style={{textAlign:"center",marginBottom:20}}>
           <div style={{fontSize:48,marginBottom:8}}>🏪</div>
           <div style={{fontWeight:900,fontSize:22,color:C.primaryDark}}>Ammar Cell</div>
@@ -100,15 +100,15 @@ function LoginPage({users,onLogin}){
 
 // ─── BUKA SHIFT KASIR ─────────────────────────────────────────────────────────
 function BukaShiftKasir({user,outlet,saldoApps,onBuka,onCancel}){
-  const APPS = Array.isArray(saldoApps)&&saldoApps.length>0 ? saldoApps : ["Digipos","Sidiva","Rita","OK","Dana","OVO","GoPay","ShopeePay"];
+  const APPS = Array.isArray(saldoApps)&&saldoApps.length>0 ? saldoApps : ["Digipos","Sidiva","Rita","OK","Dana","OVO","GoPay","ShopeePay","LinkAja","M-Kios"];
   const [cashKemb,setCashKemb]=useState("");
   const [saldo,setSaldo]=useState(()=>{const m={};APPS.forEach(a=>m[a]="");return m;});
   const totalApps = useMemo(()=>Object.values(saldo).reduce((s,v)=>s+(+v||0),0),[saldo]);
 
   return(
-    <div style={{minHeight:"100vh",background:`linear-gradient(135deg,${C.primaryDark},${C.primary})`,display:"flex",alignItems:"center",justifyContent:"center",padding:16}}>
-      <div style={{background:C.white,borderRadius:20,padding:24,width:"100%",maxWidth:460,maxHeight:"95vh",overflowY:"auto",boxShadow:"0 20px 60px rgba(0,0,0,.3)"}}>
-        <div style={{fontWeight:900,fontSize:16,color:C.primary,marginBottom:16}}>🟢 Buka Shift Kasir</div>
+    <div style={{minHeight:"100vh",width:"100%",background:`linear-gradient(135deg,${C.primaryDark},${C.primary})`,display:"flex",alignItems:"flex-start",justifyContent:"center",padding:12,overflowY:"auto"}}>
+      <div style={{background:C.white,borderRadius:16,padding:18,width:"100%",maxWidth:500,boxShadow:"0 8px 32px rgba(0,0,0,.25)"}}>
+        <div style={{fontWeight:900,fontSize:16,color:C.primary,marginBottom:14}}>🟢 Buka Shift Kasir</div>
         <div style={{background:C.primaryLight,borderRadius:10,padding:"10px 14px",marginBottom:14,display:"flex",alignItems:"center",gap:10}}>
           <span style={{fontSize:20}}>👤</span>
           <div>
@@ -122,8 +122,8 @@ function BukaShiftKasir({user,outlet,saldoApps,onBuka,onCancel}){
         <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8,marginBottom:12}}>
           {APPS.map(a=>(
             <div key={a}>
-              <label style={{...lbl,fontSize:10}}>{a}</label>
-              <input style={{...inp,marginBottom:0,fontSize:13}} type="number" value={saldo[a]||""} onChange={e=>setSaldo(p=>({...p,[a]:e.target.value}))} placeholder="0"/>
+              <label style={{...lbl,fontSize:11,marginBottom:3}}>{a}</label>
+              <input style={{...inp,marginBottom:0,fontSize:13,padding:"8px 10px"}} type="number" value={saldo[a]||""} onChange={e=>setSaldo(p=>({...p,[a]:e.target.value}))} placeholder="0"/>
             </div>
           ))}
         </div>
@@ -142,15 +142,15 @@ function BukaShiftKasir({user,outlet,saldoApps,onBuka,onCancel}){
 
 // ─── BUKA SHIFT BANK ─────────────────────────────────────────────────────────
 function BukaShiftBank({user,outlet,saldoApps,onBuka,onCancel}){
-  const APPS = Array.isArray(saldoApps)&&saldoApps.length>0 ? saldoApps : ["Digipos","Sidiva","Rita","OK","Dana","OVO","GoPay","ShopeePay"];
+  const APPS = Array.isArray(saldoApps)&&saldoApps.length>0 ? saldoApps : ["Digipos","Sidiva","Rita","OK","Dana","OVO","GoPay","ShopeePay","LinkAja","M-Kios"];
   const [cashKemb,setCashKemb]=useState("");
   const [saldo,setSaldo]=useState(()=>{const m={};APPS.forEach(a=>m[a]="");return m;});
   const totalApps = useMemo(()=>Object.values(saldo).reduce((s,v)=>s+(+v||0),0),[saldo]);
 
   return(
-    <div style={{minHeight:"100vh",background:`linear-gradient(135deg,#1e3a5f,${C.bank})`,display:"flex",alignItems:"center",justifyContent:"center",padding:16}}>
-      <div style={{background:C.white,borderRadius:20,padding:24,width:"100%",maxWidth:460,maxHeight:"95vh",overflowY:"auto",boxShadow:"0 20px 60px rgba(0,0,0,.3)"}}>
-        <div style={{fontWeight:900,fontSize:16,color:C.bank,marginBottom:16}}>🏦 Buka Shift Bank</div>
+    <div style={{minHeight:"100vh",width:"100%",background:`linear-gradient(135deg,#1e3a5f,${C.bank})`,display:"flex",alignItems:"flex-start",justifyContent:"center",padding:12,overflowY:"auto"}}>
+      <div style={{background:C.white,borderRadius:16,padding:18,width:"100%",maxWidth:500,boxShadow:"0 8px 32px rgba(0,0,0,.25)"}}>
+        <div style={{fontWeight:900,fontSize:16,color:C.bank,marginBottom:14}}>🏦 Buka Shift Bank</div>
         <div style={{background:C.bankLight,borderRadius:10,padding:"10px 14px",marginBottom:14,display:"flex",alignItems:"center",gap:10}}>
           <span style={{fontSize:20}}>👤</span>
           <div>
@@ -164,8 +164,8 @@ function BukaShiftBank({user,outlet,saldoApps,onBuka,onCancel}){
         <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8,marginBottom:12}}>
           {APPS.map(a=>(
             <div key={a}>
-              <label style={{...lbl,fontSize:10}}>{a}</label>
-              <input style={{...inp,marginBottom:0,fontSize:13}} type="number" value={saldo[a]||""} onChange={e=>setSaldo(p=>({...p,[a]:e.target.value}))} placeholder="0"/>
+              <label style={{...lbl,fontSize:11,marginBottom:3}}>{a}</label>
+              <input style={{...inp,marginBottom:0,fontSize:13,padding:"8px 10px"}} type="number" value={saldo[a]||""} onChange={e=>setSaldo(p=>({...p,[a]:e.target.value}))} placeholder="0"/>
             </div>
           ))}
         </div>
