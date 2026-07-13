@@ -984,9 +984,10 @@ export default function KasirLite(){
         ]);
         clearTimeout(to);
         // Load user_outlets untuk filter outlet per user
-        const {data:uoRows} = await supabase.from('user_outlets').select('*').catch(()=>({data:[]}));
+        let uoRows=[];
+        try{ const r=await supabase.from('user_outlets').select('*'); uoRows=r.data||[]; }catch{}
         const uoMap={};
-        (uoRows||[]).forEach(r=>{ if(!uoMap[r.username])uoMap[r.username]=[]; uoMap[r.username].push(r.outlet_id); });
+        uoRows.forEach(r=>{ if(!uoMap[r.username])uoMap[r.username]=[]; uoMap[r.username].push(r.outlet_id); });
         // Merge outletIds ke setiap user
         const parsedUsrs = parseUserOutletIds(usrs);
         Object.keys(parsedUsrs).forEach(un=>{
