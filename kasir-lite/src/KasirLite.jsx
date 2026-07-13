@@ -1013,8 +1013,13 @@ export default function KasirLite(){
   const handlePilihOutlet=useCallback((o)=>{
     setOutlet(o);
     if(shift||bankShift){ setScene("main"); return; }
-    if(user?.role==="bank") setScene("buka_shift_bank");
-    else setScene("buka_shift");
+    // Role bank → langsung ke pilih mode (kasir atau bank)
+    // Role kasir → langsung buka shift kasir
+    if(user?.role==="bank"||user?.role==="staff"||user?.role==="admin"||user?.role==="bos"){
+      setScene("pilih_mode");
+    } else {
+      setScene("buka_shift");
+    }
   },[user,shift,bankShift]);
 
   const handleBukaShiftKasir=useCallback(async(data)=>{
@@ -1122,9 +1127,28 @@ export default function KasirLite(){
     </div>
   );
 
-  if(scene==="buka_shift") return <BukaShiftKasir user={user} outlet={outlet} saldoApps={saldoApps} onBuka={handleBukaShiftKasir} onCancel={()=>setScene("login")}/>;
+  if(scene==="pilih_mode") return(
+    <div style={{minHeight:"100vh",width:"100%",background:`linear-gradient(135deg,${C.primaryDark},${C.primary})`,display:"flex",alignItems:"center",justifyContent:"center",padding:20}}>
+      <style>{css}</style>
+      <div style={{background:"#fff",borderRadius:20,padding:24,width:"100%",maxWidth:380}}>
+        <div style={{fontWeight:900,fontSize:17,marginBottom:4,color:C.primaryDark}}>Pilih Mode</div>
+        <div style={{fontSize:12,color:C.muted,marginBottom:20}}>Outlet: <b>{outlet?.nama}</b></div>
+        <button onClick={()=>setScene("buka_shift")} style={{...btn(C.primaryLight,C.primaryDark,{marginBottom:12,border:`2px solid ${C.border}`,padding:"16px"})}}>
+          🛒 Kasir<br/>
+          <span style={{fontSize:11,fontWeight:600,opacity:.7}}>Buka shift kasir — transaksi penjualan</span>
+        </button>
+        <button onClick={()=>setScene("buka_shift_bank")} style={{...btn(C.bankLight,C.bank,{marginBottom:12,border:`2px solid #bfdbfe`,padding:"16px"})}}>
+          🏦 Kasir + Bank (1 Laci)<br/>
+          <span style={{fontSize:11,fontWeight:600,opacity:.7}}>Buka shift bank — kasir & transaksi bank</span>
+        </button>
+        <button onClick={()=>setScene("pilih_outlet")} style={btn("#f1f5f9",C.muted,{border:"none"})}>← Kembali</button>
+      </div>
+    </div>
+  );
 
-  if(scene==="buka_shift_bank") return <BukaShiftBank user={user} outlet={outlet} saldoApps={saldoApps} onBuka={handleBukaShiftBank} onCancel={()=>setScene("main")}/>;
+  if(scene==="buka_shift") return <BukaShiftKasir user={user} outlet={outlet} saldoApps={saldoApps} onBuka={handleBukaShiftKasir} onCancel={()=>setScene("pilih_mode")}/>;
+
+  if(scene==="buka_shift_bank") return <BukaShiftBank user={user} outlet={outlet} saldoApps={saldoApps} onBuka={handleBukaShiftBank} onCancel={()=>setScene("pilih_mode")}/>;
 
   if(scene==="main") return(
     <KasirMain
