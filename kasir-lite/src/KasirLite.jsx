@@ -779,16 +779,18 @@ export default function KasirLite(){
       ]),10000);
       setShift(null); setScene("buka_shift");
     }catch(e){
-      const {data:chk}=await supabase.from('active_shifts').select('id').eq('outlet_id',outlet.id).limit(1).catch(()=>({data:[1]}));
-      if(!chk?.length){ setShift(null); setScene("buka_shift"); }
-      else alert("Gagal tutup shift: "+e.message);
+      try{
+        const {data:chk}=await supabase.from('active_shifts').select('id').eq('outlet_id',outlet.id).limit(1);
+        if(!chk?.length){ setShift(null); setScene("buka_shift"); }
+        else alert("Gagal tutup shift: "+e.message);
+      }catch{ alert("Gagal tutup shift: "+e.message); }
     }
   },[shift,outlet,user]);
 
   const handleTutupShiftBank=useCallback(async(data)=>{
     try{
       await dbBank.closeShift(bankShift,outlet.id,user.username,{...data,waktuTutup:now()});
-      await supabase.from('bank_shifts').delete().eq('outlet_id',outlet.id).catch(()=>{});
+      try{ await supabase.from('bank_shifts').delete().eq('outlet_id',outlet.id); }catch(e){ console.warn('del bank shift:',e); }
       setBankShift(null);
       if(isGabungan) setScene("buka_shift_bank");
     }catch(e){ alert("Gagal tutup shift bank: "+e.message); }
