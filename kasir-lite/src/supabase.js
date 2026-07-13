@@ -1,4 +1,4 @@
-﻿import { createClient } from '@supabase/supabase-js'
+import { createClient } from '@supabase/supabase-js'
 
 // ⚠️ GANTI dengan URL dan KEY dari project Supabase kamu
 // Cara dapat: Supabase Dashboard → Settings → API
