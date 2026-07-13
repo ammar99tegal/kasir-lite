@@ -184,12 +184,136 @@ function BukaShiftBank({user,outlet,saldoApps,onBuka,onCancel}){
 }
 
 // ─── TUTUP SHIFT KASIR ────────────────────────────────────────────────────────
+// ─── TUTUP SHIFT KASIR+BANK (GABUNGAN) ───────────────────────────────────────
+function TutupShiftGabungan({shift,bankShift,txHariIni,bankTrxList,saldoApps,outlet,onTutup,onCancel}){
+  const [laciFisik,setLaciFisik]=useState("");
+  const [saldoAkhir,setSaldoAkhir]=useState({});
+  const [catatan,setCatatan]=useState("");
+  const [closing,setClosing]=useState(false);
+  const APPS = Array.isArray(saldoApps)&&saldoApps.length>0?saldoApps:DEFAULT_APPS;
+
+  // Kasir calc
+  const omsetKasir = useMemo(()=>txHariIni
+    .filter(t=>t.shift_id===shift?.id)
+    .reduce((s,t)=>{const rv=(t.items||[]).filter(i=>i.refunded).reduce((rs,i)=>rs+i.price*i.qty,0);return s+t.total-rv;},0)
+  ,[txHariIni,shift?.id]);
+  const modalAwal = (shift?.saldo_data?.cashKembalian||0)+(shift?.saldo_data?.totalSaldoApps||0);
+  const kasSystemKasir = modalAwal + omsetKasir;
+
+  // Bank calc
+  const bankTrxShift = useMemo(()=>bankTrxList.filter(t=>t.shiftId===bankShift?.id),[bankTrxList,bankShift?.id]);
+  const kasBersihBank = useMemo(()=>bankTrxShift.reduce((s,t)=>s+t.netNominal,0),[bankTrxShift]);
+  const feeBankTotal  = useMemo(()=>bankTrxShift.filter(t=>t.netNominal>0&&t.fee>0).reduce((s,t)=>s+t.fee,0),[bankTrxShift]);
+
+  // Total laci sistem
+  const totalLaciSistem = kasSystemKasir + kasBersihBank;
+  const laciFisikNum = +laciFisik||0;
+  const selisih = laciFisikNum - totalLaciSistem;
+
+  const handle=async()=>{
+    if(!laciFisik) return alert("Isi dulu Uang Fisik di Laci!");
+    if(!navigator.onLine) return alert("Tidak ada koneksi internet!");
+    setClosing(true);
+    await onTutup({
+      laciFisik:laciFisikNum, totalLaciSistem, selisih,
+      omsetKasir, kasBersihBank, modalAwal,
+      saldoAkhirApps:saldoAkhir, catatan,
+    });
+    setClosing(false);
+  };
+
+  return(
+    <div style={{minHeight:"100vh",background:"#f0f4f8",overflowY:"auto",padding:16,fontFamily:"'Nunito',sans-serif"}}>
+      <style>{css}</style>
+
+      {/* Rekap Card */}
+      <div style={{background:"linear-gradient(135deg,#1e3a5f,#2563eb)",borderRadius:16,padding:20,marginBottom:16,color:"#fff"}}>
+        <div style={{fontWeight:900,fontSize:16,marginBottom:4}}>🧾 Rekap Penutupan 1 Laci</div>
+        <div style={{fontSize:11,opacity:.7,marginBottom:16}}>{new Date().toLocaleDateString("id-ID")} · {outlet?.nama}</div>
+
+        {[
+          {l:"Modal Awal (kembalian + saldo apps)",v:fmtRp(modalAwal),c:"rgba(255,255,255,.85)"},
+          {l:`+ Omset Kasir Hari Ini`,v:"+"+fmtRp(omsetKasir),c:"#86efac"},
+          {l:`= Kas Sistem Kasir`,v:fmtRp(kasSystemKasir),c:"#fff",bold:true},
+          {l:`+ Kas Bersih Bank (${bankTrxShift.length} transaksi)`,v:"+"+fmtRp(kasBersihBank),c:"#93c5fd"},
+          feeBankTotal>0&&{l:`   (termasuk fee bank: ${fmtRp(feeBankTotal)})`,v:"",c:"rgba(255,255,255,.5)",small:true},
+        ].filter(Boolean).map((r,i)=>(
+          <div key={i} style={{display:"flex",justifyContent:"space-between",marginBottom:r.bold?0:6}}>
+            <span style={{fontSize:r.small?10:12,color:r.c,fontWeight:r.bold?800:600}}>{r.l}</span>
+            <span style={{fontSize:r.small?10:13,color:r.c,fontWeight:r.bold?900:700}}>{r.v}</span>
+          </div>
+        ))}
+
+        <div style={{background:"rgba(255,255,255,.15)",borderRadius:12,padding:"12px 16px",marginTop:12}}>
+          <div style={{fontSize:11,color:"rgba(255,255,255,.7)"}}>Total Laci Menurut Sistem</div>
+          <div style={{fontWeight:900,fontSize:24,color:"#fbbf24"}}>{fmtRp(totalLaciSistem)} 💰</div>
+        </div>
+
+        {/* Uang Fisik di dalam dark card */}
+        <div style={{marginTop:12}}>
+          <div style={{fontSize:12,fontWeight:700,color:"rgba(255,255,255,.8)",marginBottom:6}}>Uang Fisik di Laci (hitung manual)</div>
+          <div style={{background:"rgba(255,255,255,.15)",borderRadius:10,padding:"10px 14px",display:"flex",alignItems:"center",gap:8}}>
+            <span style={{fontWeight:700,fontSize:16,color:"rgba(255,255,255,.7)"}}>Rp</span>
+            <input type="number" value={laciFisik} onChange={e=>setLaciFisik(e.target.value)}
+              style={{flex:1,background:"transparent",border:"none",color:"#fff",fontWeight:900,fontSize:22,outline:"none",fontFamily:"inherit"}}
+              placeholder="0"/>
+          </div>
+        </div>
+
+        {/* Selisih */}
+        {laciFisik!==""&&(
+          <div style={{marginTop:10,background:selisih===0?"rgba(34,197,94,.3)":selisih>0?"rgba(245,158,11,.3)":"rgba(239,68,68,.3)",borderRadius:10,padding:"10px 14px",display:"flex",justifyContent:"space-between",alignItems:"center"}}>
+            <span style={{fontWeight:800,color:"#fff"}}>{selisih===0?"✅ Sesuai!":selisih>0?"📈 Lebih":"📉 Kurang"}</span>
+            <span style={{fontWeight:900,fontSize:20,color:"#fff"}}>{selisih>0?"+":""}{fmtRp(selisih)}</span>
+          </div>
+        )}
+      </div>
+
+      {/* Detail transaksi */}
+      <div style={{background:"#fff",borderRadius:14,padding:16,marginBottom:14,border:"2px solid #e2e8f0"}}>
+        <div style={{fontWeight:800,fontSize:13,color:C.text,marginBottom:12}}>📊 Detail Transaksi Hari Ini</div>
+        <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12}}>
+          <div><div style={{fontSize:11,color:C.muted}}>Transaksi Kasir</div><div style={{fontWeight:800,fontSize:16,color:C.text}}>{txHariIni.filter(t=>t.shift_id===shift?.id).length} trx</div></div>
+          <div><div style={{fontSize:11,color:C.muted}}>Omset Kasir</div><div style={{fontWeight:800,fontSize:16,color:C.primary}}>{fmtRp(omsetKasir)}</div></div>
+          <div><div style={{fontSize:11,color:C.muted}}>Transaksi Bank</div><div style={{fontWeight:800,fontSize:16,color:C.bank}}>{bankTrxShift.length} trx</div></div>
+          <div><div style={{fontSize:11,color:C.muted}}>Net Kas Bank</div><div style={{fontWeight:800,fontSize:16,color:"#16a34a"}}>+{fmtRp(kasBersihBank)}</div></div>
+        </div>
+      </div>
+
+      {/* Saldo Akhir Aplikasi */}
+      <div style={{background:"#fff",borderRadius:14,padding:16,marginBottom:14,border:"2px solid #e2e8f0"}}>
+        <div style={{fontWeight:800,fontSize:13,color:C.primary,marginBottom:12}}>💳 Saldo Akhir Aplikasi (opsional)</div>
+        <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10}}>
+          {APPS.map(a=>(
+            <div key={a}>
+              <label style={{...lbl,fontSize:11}}>{a}</label>
+              <input style={{...inp,marginBottom:0,fontSize:13}} type="number" value={saldoAkhir[a]||""} onChange={e=>setSaldoAkhir(p=>({...p,[a]:e.target.value}))} placeholder="0"/>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      {/* Catatan */}
+      <div style={{background:"#fff",borderRadius:14,padding:16,marginBottom:14,border:"2px solid #e2e8f0"}}>
+        <label style={lbl}>Catatan (opsional)</label>
+        <textarea style={{...inp,resize:"vertical",minHeight:60}} value={catatan} onChange={e=>setCatatan(e.target.value)} placeholder="Misal: ada lebih Rp 5.000 kemungkinan salah kembalian..."/>
+      </div>
+
+      {!laciFisik&&<div style={{textAlign:"center",color:C.muted,fontSize:12,marginBottom:12}}>💡 Isi "Uang Fisik di Laci" untuk mengaktifkan tombol tutup shift</div>}
+
+      <div style={{display:"flex",gap:10,paddingBottom:20}}>
+        <button onClick={onCancel} style={btn("#f1f5f9",C.text,{flex:1})}>Batal</button>
+        <button onClick={handle} disabled={closing||!laciFisik} style={btn(closing||!laciFisik?"#ccc":C.danger,"#fff",{flex:2,fontSize:15})}>
+          {closing?"⏳ Menutup...":"🔒 Tutup & Simpan Shift"}
+        </button>
+      </div>
+    </div>
+  );
+}
+
+// ─── TUTUP SHIFT KASIR (standalone) ──────────────────────────────────────────
 function TutupShiftKasir({shift,txHariIni,onTutup,onCancel}){
   const [setor,setSetor]=useState("");
-  const [hutang,setHutang]=useState("");
-  const [pending,setPending]=useState("");
-  const [klr,setKlr]=useState("");
-  const [noteKlr,setNoteKlr]=useState("");
   const [kasNyata,setKasNyata]=useState("");
   const [notes,setNotes]=useState("");
   const [closing,setClosing]=useState(false);
@@ -199,8 +323,8 @@ function TutupShiftKasir({shift,txHariIni,onTutup,onCancel}){
     return s+t.total-rv;
   },0),[txHariIni]);
 
-  const st=+setor||0,htg=+hutang||0,pnd=+pending||0,pk=+klr||0;
-  const kasSystem=totalP-st-htg-pnd-pk;
+  const st=+setor||0;
+  const kasSystem=totalP-st;
   const kasFisik=+kasNyata||0;
   const selisih=kasFisik-kasSystem;
 
@@ -208,48 +332,42 @@ function TutupShiftKasir({shift,txHariIni,onTutup,onCancel}){
     if(!kasNyata) return alert("Isi dulu kas nyata di laci!");
     if(!navigator.onLine) return alert("Tidak ada koneksi internet!");
     setClosing(true);
-    await onTutup({saldoAppsClose:{},cashKembC:0,setorTunai:st,hutang:htg,pending:pnd,pengeluaran:pk,noteKlr,kasNyataSystem:kasSystem,kasNyataFisik:kasFisik,selisih,notes});
+    await onTutup({setorTunai:st,kasNyataSystem:kasSystem,kasNyataFisik:kasFisik,selisih,notes});
     setClosing(false);
   };
 
   return(
     <Modal title="🔴 Tutup Shift Kasir" onClose={onCancel}>
       <div style={{background:C.primaryLight,borderRadius:10,padding:"10px 14px",marginBottom:12}}>
-        <div style={{fontSize:11,color:C.muted}}>Shift: {shift?.nama} · {txHariIni.length} transaksi hari ini</div>
+        <div style={{fontSize:11,color:C.muted}}>Shift: {shift?.nama} · {txHariIni.length} transaksi</div>
+        <div style={{fontWeight:800,color:C.primary}}>Omset: {fmtRp(totalP)}</div>
       </div>
-      {[{l:"Setor Tunai",v:setor,fn:setSetor},{l:"Hutang Pelanggan",v:hutang,fn:setHutang},{l:"Transaksi Pending",v:pending,fn:setPending},{l:"Pengeluaran",v:klr,fn:setKlr}].map(f=>(
-        <div key={f.l}><label style={lbl}>{f.l}</label><input style={inp} type="number" value={f.v} onChange={e=>f.fn(e.target.value)} placeholder="0"/></div>
-      ))}
-      <label style={lbl}>Note Pengeluaran</label>
-      <input style={inp} value={noteKlr} onChange={e=>setNoteKlr(e.target.value)} placeholder="Contoh: beli plastik..."/>
-      <div style={{background:"#f8fffe",border:`2px solid ${C.border}`,borderRadius:10,padding:"12px 14px",marginBottom:12,fontSize:13}}>
-        <div style={{display:"flex",justifyContent:"space-between",marginBottom:4}}><span style={{color:C.primary,fontWeight:700}}>Total Penjualan Bersih</span><b style={{color:C.primary}}>{fmtRp(totalP)}</b></div>
-        <div style={{fontSize:10,color:C.muted,marginBottom:6}}>({txHariIni.length} trx · sudah dikurangi refund)</div>
-        {st>0&&<div style={{display:"flex",justifyContent:"space-between",marginBottom:3}}><span style={{color:C.danger}}>( - ) Setor Tunai</span><b style={{color:C.danger}}>{fmtRp(st)}</b></div>}
-        {htg>0&&<div style={{display:"flex",justifyContent:"space-between",marginBottom:3}}><span style={{color:C.danger}}>( - ) Hutang</span><b style={{color:C.danger}}>{fmtRp(htg)}</b></div>}
-        {pnd>0&&<div style={{display:"flex",justifyContent:"space-between",marginBottom:3}}><span style={{color:C.danger}}>( - ) Pending</span><b style={{color:C.danger}}>{fmtRp(pnd)}</b></div>}
-        {pk>0&&<div style={{display:"flex",justifyContent:"space-between",marginBottom:3}}><span style={{color:C.danger}}>( - ) Pengeluaran</span><b style={{color:C.danger}}>{fmtRp(pk)}</b></div>}
-        <div style={{display:"flex",justifyContent:"space-between",paddingTop:8,borderTop:`2px solid ${C.border}`,marginTop:6}}>
+      <label style={lbl}>Setor Tunai (opsional)</label>
+      <input style={inp} type="number" value={setor} onChange={e=>setSetor(e.target.value)} placeholder="0"/>
+      <div style={{background:"#f8fffe",border:`2px solid ${C.border}`,borderRadius:10,padding:"10px 14px",marginBottom:12}}>
+        <div style={{display:"flex",justifyContent:"space-between"}}>
           <span style={{fontWeight:900}}>= Kas di Laci (Sistem)</span>
           <b style={{fontSize:17,color:C.primary}}>{fmtRp(kasSystem)}</b>
         </div>
       </div>
-      <label style={{...lbl,fontSize:13}}>Kas Nyata di Laci (Hitung Fisik) *</label>
-      <input style={{...inp,border:`2px solid ${kasNyata?C.primary:C.border}`,fontWeight:700,fontSize:15}} type="number" value={kasNyata} onChange={e=>setKasNyata(e.target.value)} placeholder="Hitung uang di laci..."/>
+      <label style={{...lbl,fontSize:13}}>Kas Nyata di Laci *</label>
+      <div style={{background:C.bg,borderRadius:10,padding:"10px 14px",marginBottom:12,display:"flex",alignItems:"center",gap:8,border:`2px solid ${kasNyata?C.primary:C.border}`}}>
+        <span style={{fontWeight:700,color:C.primary}}>Rp</span>
+        <input type="number" value={kasNyata} onChange={e=>setKasNyata(e.target.value)} style={{flex:1,border:"none",background:"transparent",fontWeight:900,fontSize:20,outline:"none",fontFamily:"inherit"}} placeholder="0"/>
+      </div>
       {kasNyata!==""&&(
         <div style={{background:selisih===0?"#e8f8f4":selisih>0?"#fffbe6":"#fff0f0",border:`2px solid ${selisih===0?"#2ecc71":selisih>0?C.warn:C.danger}`,borderRadius:10,padding:"10px 14px",marginBottom:12}}>
           <div style={{display:"flex",justifyContent:"space-between",alignItems:"center"}}>
             <span style={{fontWeight:800}}>{selisih===0?"✅ Sesuai!":selisih>0?"📈 Lebih":"📉 Kurang"}</span>
             <span style={{fontWeight:900,fontSize:20,color:selisih===0?"#2ecc71":selisih>0?C.warn:C.danger}}>{selisih>0?"+":""}{fmtRp(selisih)}</span>
           </div>
-          <div style={{fontSize:10,color:C.muted,marginTop:3}}>Sistem: {fmtRp(kasSystem)} → Fisik: {fmtRp(kasFisik)}</div>
         </div>
       )}
-      <label style={lbl}>Catatan Shift</label>
-      <textarea style={{...inp,resize:"vertical",minHeight:60}} value={notes} onChange={e=>setNotes(e.target.value)} placeholder="Catatan closing..."/>
+      <label style={lbl}>Catatan</label>
+      <textarea style={{...inp,resize:"vertical",minHeight:50}} value={notes} onChange={e=>setNotes(e.target.value)} placeholder="Catatan closing..."/>
       <div style={{display:"flex",gap:8,marginTop:4}}>
         <button onClick={onCancel} style={btn("#f1f5f9",C.text,{flex:1})}>Batal</button>
-        <button onClick={handle} disabled={closing} style={btn(closing?"#ccc":C.danger,"#fff",{flex:2})}>
+        <button onClick={handle} disabled={closing||!kasNyata} style={btn(closing||!kasNyata?"#ccc":C.danger,"#fff",{flex:2})}>
           {closing?"⏳ Menutup...":"Tutup & Simpan Shift"}
         </button>
       </div>
@@ -257,7 +375,7 @@ function TutupShiftKasir({shift,txHariIni,onTutup,onCancel}){
   );
 }
 
-// ─── TUTUP SHIFT BANK ─────────────────────────────────────────────────────────
+// ─── TUTUP SHIFT BANK (standalone) ────────────────────────────────────────────
 function TutupShiftBank({shift,trxList,onTutup,onCancel}){
   const [uangLaci,setUangLaci]=useState("");
   const [catatan,setCatatan]=useState("");
@@ -281,18 +399,19 @@ function TutupShiftBank({shift,trxList,onTutup,onCancel}){
 
   return(
     <Modal title="🔴 Tutup Shift Bank" onClose={onCancel}>
-      <div style={{background:C.bankLight,borderRadius:10,padding:"10px 14px",marginBottom:12,display:"grid",gridTemplateColumns:"1fr 1fr",gap:8}}>
-        <div><div style={{fontSize:10,color:C.muted}}>Total Masuk</div><div style={{fontWeight:900,color:"#16a34a",fontSize:15}}>{fmtRp(sMasuk)}</div></div>
-        <div><div style={{fontSize:10,color:C.muted}}>Total Keluar</div><div style={{fontWeight:900,color:C.danger,fontSize:15}}>{fmtRp(sKeluar)}</div></div>
-      </div>
       <div style={{background:"#f8fffe",border:`2px solid ${C.border}`,borderRadius:10,padding:"12px 14px",marginBottom:12}}>
-        <div style={{display:"flex",justifyContent:"space-between"}}><span style={{fontWeight:700}}>Cash Kembalian Awal</span><b>{fmtRp(cashKemb)}</b></div>
-        <div style={{display:"flex",justifyContent:"space-between",paddingTop:8,borderTop:`2px solid ${C.border}`,marginTop:8}}>
+        <div style={{display:"flex",justifyContent:"space-between",marginBottom:6}}>
+          <span>Total Masuk</span><b style={{color:"#16a34a"}}>{fmtRp(sMasuk)}</b>
+        </div>
+        <div style={{display:"flex",justifyContent:"space-between",paddingTop:8,borderTop:`2px solid ${C.border}`}}>
           <span style={{fontWeight:900}}>= Uang Sistem</span><b style={{fontSize:17,color:C.bank}}>{fmtRp(uangSistem)}</b>
         </div>
       </div>
       <label style={{...lbl,fontSize:13}}>Uang di Laci (Hitung Fisik) *</label>
-      <input style={{...inp,border:`2px solid ${uangLaci?C.bank:C.border}`,fontWeight:700,fontSize:15}} type="number" value={uangLaci} onChange={e=>setUangLaci(e.target.value)} placeholder="Hitung uang di laci..."/>
+      <div style={{background:C.bg,borderRadius:10,padding:"10px 14px",marginBottom:12,display:"flex",alignItems:"center",gap:8,border:`2px solid ${uangLaci?C.bank:C.border}`}}>
+        <span style={{fontWeight:700,color:C.bank}}>Rp</span>
+        <input type="number" value={uangLaci} onChange={e=>setUangLaci(e.target.value)} style={{flex:1,border:"none",background:"transparent",fontWeight:900,fontSize:20,outline:"none",fontFamily:"inherit"}} placeholder="0"/>
+      </div>
       {uangLaci!==""&&(
         <div style={{background:selisih===0?"#e8f8f4":selisih>0?"#fffbe6":"#fff0f0",border:`2px solid ${selisih===0?"#2ecc71":selisih>0?C.warn:C.danger}`,borderRadius:10,padding:"10px 14px",marginBottom:12}}>
           <div style={{display:"flex",justifyContent:"space-between",alignItems:"center"}}>
@@ -302,10 +421,10 @@ function TutupShiftBank({shift,trxList,onTutup,onCancel}){
         </div>
       )}
       <label style={lbl}>Catatan</label>
-      <textarea style={{...inp,resize:"vertical",minHeight:60}} value={catatan} onChange={e=>setCatatan(e.target.value)} placeholder="Catatan closing..."/>
+      <textarea style={{...inp,resize:"vertical",minHeight:50}} value={catatan} onChange={e=>setCatatan(e.target.value)} placeholder="Catatan closing..."/>
       <div style={{display:"flex",gap:8,marginTop:4}}>
         <button onClick={onCancel} style={btn("#f1f5f9",C.text,{flex:1})}>Batal</button>
-        <button onClick={handle} disabled={closing} style={btn(closing?"#ccc":C.danger,"#fff",{flex:2})}>
+        <button onClick={handle} disabled={closing||!uangLaci} style={btn(closing||!uangLaci?"#ccc":C.danger,"#fff",{flex:2})}>
           {closing?"⏳ Menutup...":"Tutup & Simpan Shift Bank"}
         </button>
       </div>
@@ -313,6 +432,21 @@ function TutupShiftBank({shift,trxList,onTutup,onCancel}){
   );
 }
 
+  const totalP = useMemo(()=>txHariIni.reduce((s,t)=>{
+    const rv=(t.items||[]).filter(i=>i.refunded).reduce((rs,i)=>rs+i.price*i.qty,0);
+    return s+t.total-rv;
+  },0),[txHariIni]);
+
+  const st=+setor||0,htg=+hutang||0,pnd=+pending||0,pk=+klr||0;
+  const kasSystem=totalP-st-htg-pnd-pk;
+  const kasFisik=+kasNyata||0;
+  const selisih=kasFisik-kasSystem;
+
+  const handle=async()=>{
+    if(!kasNyata) return alert("Isi dulu kas nyata di laci!");
+    if(!navigator.onLine) return alert("Tidak ada koneksi internet!");
+    setClosing(true);
+    await onTutup({saldoAppsClose:{},cashKembC:0,setorTunai:st,hutang:htg,pending:pnd,pengeluaran:pk,noteKlr,kasNyataSystem:kasSystem,kasNyataFisik:kasFisik,selisih,notes});
 // ─── SETOR TUNAI FORM ────────────────────────────────────────────────────────
 function SetorTunaiForm({onSave,onCancel}){
   const [nominal,setNominal]=useState("");
@@ -908,8 +1042,21 @@ function KasirMain({user,outlet,products,stocks,prodOrder=[],aktifProds={},shift
         />
       )}
 
-      {/* Modal Tutup Shift Kasir */}
-      {showTutupKasir&&(
+      {/* Modal Tutup Shift — Gabungan atau Kasir saja */}
+      {showTutupKasir&&isGabungan&&(
+        <TutupShiftGabungan
+          shift={shift} bankShift={bankShift}
+          txHariIni={txHariIni} bankTrxList={bankTrxList}
+          saldoApps={[]} outlet={outlet}
+          onTutup={async(data)=>{
+            await onTutupShift(data);
+            await onTutupBankShift(data);
+            setShowTutupKasir(false);
+          }}
+          onCancel={()=>setShowTutupKasir(false)}
+        />
+      )}
+      {showTutupKasir&&!isGabungan&&(
         <TutupShiftKasir shift={shift} txHariIni={txHariIni.filter(t=>t.shift_id===shift?.id)} onTutup={onTutupShift} onCancel={()=>setShowTutupKasir(false)}/>
       )}
 
