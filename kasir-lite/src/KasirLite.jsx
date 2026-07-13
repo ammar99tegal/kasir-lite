@@ -892,6 +892,17 @@ function KasirMain({user,outlet,products,stocks,prodOrder=[],aktifProds={},shift
   );
 }
 
+// ─── Parse user outlet IDs ────────────────────────────────────────────────────
+const parseUserOutletIds=(usrs={})=>{
+  const result={};
+  Object.entries(usrs).forEach(([k,v])=>{
+    result[k]={...v,
+      outletIds:v.outletIds||v.outlet_ids||(v.outletId?[v.outletId]:[]),
+    };
+  });
+  return result;
+};
+
 // ─── APP ROOT ─────────────────────────────────────────────────────────────────
 export default function KasirLite(){
   const [users,   setUsers]   = useState({});
@@ -919,6 +930,15 @@ export default function KasirLite(){
     }catch{}
     return "login";
   });
+
+  // Filter outlet sesuai user yang sedang login
+  const userOutlets = useMemo(()=>{
+    if(!user) return outlets;
+    if(user.role==="admin"||user.role==="bos") return outlets;
+    const ids = (user.outletIds||[]).map(String).concat(user.outletId?[String(user.outletId)]:[]);
+    if(ids.length===0) return outlets;
+    return outlets.filter(o=>ids.includes(String(o.id)));
+  },[user,outlets]);
 
   const isGabungan = user?.role==="bank" || user?.role==="staff";
   const isKasirOnly = user?.role==="kasir" || user?.role==="karyawan";
@@ -955,7 +975,7 @@ export default function KasirLite(){
           }).catch(()=>({})),
         ]);
         clearTimeout(to);
-        setUsers(usrs); setProducts(prods); setOutlets(outs); setStocks(stks);
+        setUsers(parseUserOutletIds(usrs)); setProducts(prods); setOutlets(outs); setStocks(stks);
         setSaldoApps(sa.length>0?sa:DEFAULT_APPS);
         if(po.length>0) setProdOrder(po);
         if(Object.keys(ap).length>0) setAktifProds(ap);
@@ -968,8 +988,13 @@ export default function KasirLite(){
   // ── Handlers ────────────────────────────────────────────────────────────────
   const handleLogin=useCallback((u)=>{
     setUser(u);
+    // Hitung outlet yang bisa diakses user ini
+    const ids = (u.outletIds||[]).map(String).concat(u.outletId?[String(u.outletId)]:[]);
+    const allowed = (u.role==="admin"||u.role==="bos")
+      ? outlets
+      : ids.length>0 ? outlets.filter(o=>ids.includes(String(o.id))) : outlets;
     const target = u.role==="bank" ? "buka_shift_bank" : "buka_shift";
-    if(outlets.length===1){ setOutlet(outlets[0]); setScene(target); }
+    if(allowed.length===1){ setOutlet(allowed[0]); setScene(target); }
     else setScene("pilih_outlet");
   },[outlets]);
 
@@ -1069,7 +1094,7 @@ export default function KasirLite(){
             ✅ Shift aktif — pilih outlet untuk lanjutkan
           </div>
         )}
-        {outlets.map(o=>(
+        {userOutlets.map(o=>(
           <button key={o.id} onClick={()=>handlePilihOutlet(o)} style={{...btn(C.primaryLight,C.primaryDark,{marginBottom:8,textAlign:"left",border:`2px solid ${C.border}`})}}>
             🏪 {o.nama}
           </button>
