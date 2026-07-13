@@ -379,16 +379,19 @@ function FormTrxBank({onSave,onCancel,editData}){
     ? feeType==="fee"     ? nomNum+feeNum
     : feeType==="dipotong"? nomNum-feeNum
     : nomNum
-    : feeType==="tarik"   ? -(nomNum)   // keluar tarik: nominal keluar, fee masuk terpisah
+    : feeType==="tarik"   ? -(nomNum)
     : feeType==="fee"     ? -(nomNum+feeNum)
     : feeType==="dipotong"? -(nomNum-feeNum)
     : -(nomNum);
+
+  const FEE_TYPES = jenis==="masuk"
+    ?[{k:"include",l:"INCLUDE",sub:"Sudah all-in"},{k:"fee",l:"+ FEE",sub:"Fee ditambah ke nominal"},{k:"dipotong",l:"– DIPOTONG",sub:"Fee dipotong dari nominal"}]
+    :[{k:"include",l:"INCLUDE",sub:"Sudah all-in"},{k:"fee",l:"+ FEE",sub:"Fee ditambah ke nominal"},{k:"dipotong",l:"– DIPOTONG",sub:"Fee dipotong dari nominal"},{k:"tarik",l:"🏧 TARIK",sub:"Keluar laci, fee masuk"}];
 
   const handle=async()=>{
     if(!nama.trim()||!nomNum) return alert("Isi nama dan nominal!");
     setSaving(true);
     if(jenis==="keluar"&&feeType==="tarik"&&feeNum>0){
-      // Tarik: 2 transaksi — keluar nominal, masuk fee
       await onSave([
         {nama:nama+" (TARIK)",jenis:"keluar",feeType:"tarik",fee:0,nominal:nomNum,netNominal:-nomNum},
         {nama:nama+" (FEE TARIK)",jenis:"masuk",feeType:"tarik",fee:0,nominal:feeNum,netNominal:+feeNum},
@@ -400,40 +403,64 @@ function FormTrxBank({onSave,onCancel,editData}){
   };
 
   return(
-    <Modal title="+ Catat Transaksi Bank" onClose={onCancel}>
-      <div style={{display:"flex",gap:8,marginBottom:12}}>
-        {[{k:"masuk",l:"⬇ Masuk"},{k:"keluar",l:"⬆ Keluar"}].map(j=>(
-          <button key={j.k} onClick={()=>setJenis(j.k)} style={{flex:1,padding:"10px",borderRadius:10,border:`2px solid ${jenis===j.k?(j.k==="masuk"?"#16a34a":C.danger):C.border}`,background:jenis===j.k?(j.k==="masuk"?"#f0fdf4":"#fff0f0"):"#fff",fontWeight:800,fontSize:13,cursor:"pointer",color:jenis===j.k?(j.k==="masuk"?"#16a34a":C.danger):C.muted}}>
+    <Modal title="+ Catat Transaksi" onClose={onCancel}>
+      {/* Nama */}
+      <input style={{...inp,fontSize:14,fontWeight:700,textTransform:"uppercase",letterSpacing:.5}} value={nama} onChange={e=>setNama(e.target.value)} placeholder="Contoh: SETORAN PENJUALAN PUSAT"/>
+
+      {/* Masuk / Keluar */}
+      <div style={{display:"flex",gap:10,marginBottom:14}}>
+        {[{k:"masuk",l:"⬇ MASUK"},{k:"keluar",l:"⬆ KELUAR"}].map(j=>(
+          <button key={j.k} onClick={()=>{setJenis(j.k);setFeeType("include");}} style={{flex:1,padding:"14px 8px",borderRadius:12,border:`2px solid ${jenis===j.k?(j.k==="masuk"?"#16a34a":C.danger):C.border}`,background:jenis===j.k?(j.k==="masuk"?"#f0fdf4":"#fff0f0"):"#fff",fontWeight:900,fontSize:15,cursor:"pointer",color:jenis===j.k?(j.k==="masuk"?"#16a34a":C.danger):C.muted}}>
             {j.l}
           </button>
         ))}
       </div>
-      <label style={lbl}>Nama Transaksi *</label>
-      <input style={inp} value={nama} onChange={e=>setNama(e.target.value)} placeholder="Contoh: TF BNI 500K, Tarik Dana..."/>
-      <label style={lbl}>Nominal *</label>
-      <input style={inp} type="number" value={nominal} onChange={e=>setNominal(e.target.value)} placeholder="0"/>
-      <label style={lbl}>Tipe Fee</label>
-      <div style={{display:"flex",gap:6,marginBottom:10,flexWrap:"wrap"}}>
-        {(jenis==="masuk"
-          ?[{k:"include",l:"Include"},{k:"fee",l:"+ Fee"},{k:"dipotong",l:"- Dipotong"}]
-          :[{k:"include",l:"Include"},{k:"fee",l:"+ Fee"},{k:"dipotong",l:"- Dipotong"},{k:"tarik",l:"Tarik (Fee Pisah)"}]
-        ).map(f=>(
-          <button key={f.k} onClick={()=>setFeeType(f.k)} style={{flex:1,minWidth:"40%",padding:"8px 4px",borderRadius:9,border:`2px solid ${feeType===f.k?C.bank:C.border}`,background:feeType===f.k?C.bankLight:"#fff",fontWeight:700,fontSize:12,cursor:"pointer",color:feeType===f.k?C.bank:C.muted}}>{f.l}</button>
+
+      {/* Nominal */}
+      <div style={{background:C.bg,borderRadius:12,padding:"12px 16px",marginBottom:14,display:"flex",alignItems:"center",gap:8,border:`2px solid ${C.border}`}}>
+        <span style={{fontWeight:800,fontSize:18,color:C.primary}}>Rp</span>
+        <input type="number" value={nominal} onChange={e=>setNominal(e.target.value)}
+          style={{flex:1,border:"none",background:"transparent",fontWeight:900,fontSize:24,color:C.text,textAlign:"right",fontFamily:"inherit",outline:"none"}}
+          placeholder="0"/>
+      </div>
+
+      {/* Tipe Fee */}
+      <div style={{fontSize:11,fontWeight:800,color:C.muted,letterSpacing:1,marginBottom:8}}>TIPE FEE</div>
+      <div style={{display:"grid",gridTemplateColumns:`repeat(${FEE_TYPES.length},1fr)`,gap:8,marginBottom:12}}>
+        {FEE_TYPES.map(f=>(
+          <button key={f.k} onClick={()=>setFeeType(f.k)} style={{padding:"10px 6px",borderRadius:12,border:`2px solid ${feeType===f.k?C.primary:C.border}`,background:feeType===f.k?C.primaryLight:"#fff",fontWeight:800,fontSize:11,cursor:"pointer",color:feeType===f.k?C.primary:C.muted,textAlign:"center",lineHeight:1.4}}>
+            {f.l}<br/><span style={{fontWeight:600,fontSize:9,opacity:.8}}>{f.sub}</span>
+          </button>
         ))}
       </div>
-      {feeType!=="include"&&(
-        <>
+
+      {/* Fee input */}
+      {feeType!=="include"&&feeType!=="tarik"&&(
+        <div style={{marginBottom:12}}>
           <label style={lbl}>Nominal Fee</label>
           <input style={inp} type="number" value={fee} onChange={e=>setFee(e.target.value)} placeholder="0"/>
-        </>
+        </div>
       )}
-      <div style={{background:netNominal>=0?"#f0fdf4":"#fff0f0",border:`2px solid ${netNominal>=0?"#86efac":"#fca5a5"}`,borderRadius:10,padding:"10px 14px",marginBottom:14,display:"flex",justifyContent:"space-between",alignItems:"center"}}>
-        <span style={{fontWeight:700,fontSize:13}}>Net</span>
-        <span style={{fontWeight:900,fontSize:18,color:netNominal>=0?"#16a34a":C.danger}}>{netNominal>=0?"+":""}{fmtRp(netNominal)}</span>
-      </div>
-      <div style={{display:"flex",gap:8}}>
-        <button onClick={onCancel} style={btn("#f1f5f9",C.text,{flex:1})}>Batal</button>
-        <button onClick={handle} disabled={saving||!nama.trim()||!nomNum} style={btn(saving||!nama.trim()||!nomNum?"#ccc":C.bank,"#fff",{flex:2})}>
+      {feeType==="tarik"&&(
+        <div style={{marginBottom:12}}>
+          <label style={lbl}>Nominal Fee Tarik</label>
+          <input style={inp} type="number" value={fee} onChange={e=>setFee(e.target.value)} placeholder="0"/>
+        </div>
+      )}
+
+      {/* Net preview */}
+      {nomNum>0&&(
+        <div style={{background:netNominal>=0?"#f0fdf4":"#fff0f0",border:`2px solid ${netNominal>=0?"#86efac":"#fca5a5"}`,borderRadius:10,padding:"10px 16px",marginBottom:14,display:"flex",justifyContent:"space-between",alignItems:"center"}}>
+          <span style={{fontWeight:700,fontSize:13,color:C.muted}}>Net</span>
+          <span style={{fontWeight:900,fontSize:20,color:netNominal>=0?"#16a34a":C.danger}}>{netNominal>=0?"+":""}{fmtRp(Math.abs(netNominal))}</span>
+        </div>
+      )}
+
+      {/* Actions */}
+      <div style={{display:"flex",gap:10}}>
+        <button onClick={onCancel} style={{width:50,height:50,borderRadius:12,border:`2px solid ${C.border}`,background:"#fff",color:C.muted,fontWeight:900,fontSize:20,cursor:"pointer",flexShrink:0}}>✕</button>
+        <button onClick={handle} disabled={saving||!nama.trim()||!nomNum}
+          style={{flex:1,padding:"14px",borderRadius:12,border:"none",background:saving||!nama.trim()||!nomNum?"#e2e8f0":C.primary,color:saving||!nama.trim()||!nomNum?"#94a3b8":"#fff",fontWeight:900,fontSize:15,cursor:saving||!nama.trim()||!nomNum?"not-allowed":"pointer",fontFamily:"inherit"}}>
           {saving?"⏳ Menyimpan...":"💾 Simpan"}
         </button>
       </div>
