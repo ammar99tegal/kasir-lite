@@ -427,8 +427,91 @@ function FormTrxBank({onSave,onCancel,editData}){
   );
 }
 
+// ─── STOK FISIK TAB ───────────────────────────────────────────────────────────
+function StokFisikTab({products,stocks,outlet,user,notify}){
+  const [stokFisik,setStokFisik]=useState({});
+  const [search,setSearch]=useState("");
+  const [saving,setSaving]=useState(false);
+  const [saved,setSaved]=useState(false);
+
+  const filtered=useMemo(()=>
+    products.filter(p=>!search.trim()||p.name?.toLowerCase().includes(search.toLowerCase()))
+  ,[products,search]);
+
+  const hasSelisih=useMemo(()=>
+    Object.entries(stokFisik).filter(([id,v])=>v!==""&&+v!==(stocks[id]??0)).length
+  ,[stokFisik,stocks]);
+
+  const handleSimpan=async()=>{
+    const entries=Object.entries(stokFisik).filter(([,v])=>v!=="");
+    if(!entries.length) return notify("Belum ada stok fisik yang diisi","err");
+    setSaving(true);
+    try{
+      const rows=entries.map(([id,fisik])=>({
+        outlet_id:outlet.id,
+        product_id:id,
+        stok_sistem:stocks[id]??0,
+        stok_fisik:+fisik,
+        selisih:(+fisik)-(stocks[id]??0),
+        user:user.username||user.nama,
+        tgl:new Date().toISOString().split('T')[0],
+        created_at:new Date().toISOString(),
+      }));
+      await supabase.from('stok_opname').insert(rows);
+      setSaved(true);
+      notify(`✅ ${rows.length} stok fisik tersimpan ke laporan admin`,"ok");
+      setTimeout(()=>setSaved(false),3000);
+    }catch(e){ notify("Gagal simpan: "+e.message,"err"); }
+    setSaving(false);
+  };
+
+  return(
+    <div style={{padding:14}}>
+      <div style={{background:C.primaryLight,borderRadius:10,padding:"10px 14px",marginBottom:12,fontSize:12,color:C.primary,fontWeight:700}}>
+        📦 Input Stok Fisik — hasil dikirim ke laporan admin, tidak mengubah stok sistem
+      </div>
+      <input style={{...inp,marginBottom:10}} value={search} onChange={e=>setSearch(e.target.value)} placeholder="🔍 Cari produk..."/>
+      {hasSelisih>0&&(
+        <div style={{background:"#fff8e1",border:"2px solid #ffe082",borderRadius:10,padding:"8px 12px",marginBottom:10,fontSize:12,color:"#7d6608",fontWeight:700}}>
+          ⚠️ {hasSelisih} produk ada selisih
+        </div>
+      )}
+      <div style={{background:"#fff",borderRadius:12,border:`2px solid ${C.border}`,overflow:"hidden",marginBottom:12}}>
+        <div style={{display:"grid",gridTemplateColumns:"1fr 80px 80px 80px",padding:"8px 12px",background:C.primaryLight,fontSize:11,fontWeight:800,color:C.primary,gap:8}}>
+          <span>Produk</span><span style={{textAlign:"center"}}>Sistem</span><span style={{textAlign:"center"}}>Fisik</span><span style={{textAlign:"center"}}>Selisih</span>
+        </div>
+        {filtered.map(p=>{
+          const sistem=stocks[p.id]??0;
+          const fisikVal=stokFisik[p.id]??"";
+          const fisikNum=fisikVal===""?null:+fisikVal;
+          const selisih=fisikNum!=null?fisikNum-sistem:null;
+          return(
+            <div key={p.id} style={{display:"grid",gridTemplateColumns:"1fr 80px 80px 80px",padding:"8px 12px",borderTop:`1px solid ${C.border}`,gap:8,alignItems:"center",background:selisih!=null&&selisih!==0?"#fffbe6":"#fff"}}>
+              <div style={{fontWeight:700,fontSize:12,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{p.name}</div>
+              <div style={{textAlign:"center",fontWeight:700,fontSize:13,color:C.muted}}>{sistem}</div>
+              <input
+                type="number" value={fisikVal}
+                onChange={e=>setStokFisik(prev=>({...prev,[p.id]:e.target.value}))}
+                style={{textAlign:"center",padding:"4px 6px",border:`2px solid ${selisih!=null&&selisih!==0?C.warn:C.border}`,borderRadius:8,fontSize:13,fontWeight:700,fontFamily:"inherit",width:"100%"}}
+                placeholder={String(sistem)}
+              />
+              <div style={{textAlign:"center",fontWeight:800,fontSize:13,color:selisih==null?"#ccc":selisih===0?"#16a34a":selisih>0?"#f59e0b":C.danger}}>
+                {selisih==null?"—":selisih===0?"✓":selisih>0?"+"+selisih:selisih}
+              </div>
+            </div>
+          );
+        })}
+      </div>
+      <button onClick={handleSimpan} disabled={saving||saved}
+        style={btn(saving||saved?"#ccc":C.primary,"#fff")}>
+        {saving?"⏳ Menyimpan...":saved?"✅ Tersimpan!":"💾 Kirim ke Laporan Admin"}
+      </button>
+    </div>
+  );
+}
+
 // ─── KASIR MAIN ───────────────────────────────────────────────────────────────
-function KasirMain({user,outlet,products,stocks,shift,onAddTrx,onTutupShift,onLogout,onMenu,bankShift,bankTrxList,onAddBankTrx,onTutupBankShift,isGabungan}){
+function KasirMain({user,outlet,products,stocks,prodOrder=[],aktifProds={},shift,onAddTrx,onTutupShift,onLogout,onMenu,bankShift,bankTrxList,onAddBankTrx,onTutupBankShift,isGabungan}){
   const [tab,setTab]=useState("kasir"); // kasir | bank | riwayat
   const [search,setSearch]=useState("");
   const [cat,setCat]=useState("Semua");
@@ -469,10 +552,20 @@ function KasirMain({user,outlet,products,stocks,shift,onAddTrx,onTutupShift,onLo
     return()=>supabase.removeChannel(ch);
   },[outlet.id]);
 
-  // Produk aktif untuk outlet ini
-  const outletProducts = useMemo(()=>
-    products.filter(p=>!p.deleted&&p.aktif!==false).sort((a,b)=>(a.order||999)-(b.order||999))
-  ,[products]);
+  // Produk aktif untuk outlet ini, diurutkan sesuai prodOrder admin
+  const outletAktif = aktifProds[outlet?.id];
+  const outletProducts = useMemo(()=>{
+    let list = products.filter(p=>!p.deleted);
+    // Filter aktif kalau ada data aktif untuk outlet ini
+    if(outletAktif!=null) list = list.filter(p=>outletAktif.includes(String(p.id))||outletAktif.includes(p.id));
+    // Urutkan sesuai prodOrder (sama dengan admin)
+    if(prodOrder.length>0){
+      const ordered = prodOrder.map(id=>list.find(p=>String(p.id)===String(id))).filter(Boolean);
+      const rest = list.filter(p=>!prodOrder.map(String).includes(String(p.id)));
+      return [...ordered,...rest];
+    }
+    return list.sort((a,b)=>(a.order||999)-(b.order||999));
+  },[products,prodOrder,outletAktif,outlet?.id]);
 
   const cats = useMemo(()=>["Semua",...[...new Set(outletProducts.map(p=>p.category||p.kategori||"Lainnya").filter(Boolean))]]
   ,[outletProducts]);
@@ -526,8 +619,8 @@ function KasirMain({user,outlet,products,stocks,shift,onAddTrx,onTutupShift,onLo
   const bankKeluar  = useMemo(()=>bankTrxHari.filter(t=>t.netNominal<0).reduce((s,t)=>s+Math.abs(t.netNominal),0),[bankTrxHari]);
 
   const TABS = isGabungan
-    ? [{k:"kasir",l:"🛒 Kasir"},{k:"bank",l:"🏦 Bank"},{k:"riwayat",l:"📋 Riwayat"}]
-    : [{k:"kasir",l:"🛒 Kasir"},{k:"riwayat",l:"📋 Riwayat"}];
+    ? [{k:"kasir",l:"🛒 Kasir"},{k:"bank",l:"🏦 Bank"},{k:"stok",l:"📦 Stok"},{k:"riwayat",l:"📋 Riwayat"}]
+    : [{k:"kasir",l:"🛒 Kasir"},{k:"stok",l:"📦 Stok"},{k:"riwayat",l:"📋 Riwayat"}];
 
   return(
     <div style={{minHeight:"100vh",background:C.bg,fontFamily:"'Nunito',sans-serif"}}>
@@ -749,6 +842,16 @@ function KasirMain({user,outlet,products,stocks,shift,onAddTrx,onTutupShift,onLo
         </Modal>
       )}
 
+      {tab==="stok"&&(
+        <StokFisikTab
+          products={outletProducts}
+          stocks={stocks[outlet?.id]||{}}
+          outlet={outlet}
+          user={user}
+          notify={notify}
+        />
+      )}
+
       {/* Modal Tutup Shift Kasir */}
       {showTutupKasir&&(
         <TutupShiftKasir shift={shift} txHariIni={txHariIni.filter(t=>t.shift_id===shift?.id)} onTutup={onTutupShift} onCancel={()=>setShowTutupKasir(false)}/>
@@ -788,6 +891,8 @@ export default function KasirLite(){
   const [stocks,  setStocks]  = useState({});
   const [outlets, setOutlets] = useState([]);
   const [saldoApps,setSaldoApps]=useState([]);
+  const [prodOrder,setProdOrder]=useState([]);
+  const [aktifProds,setAktifProds]=useState({});
   const [loading, setLoading] = useState(true);
   const [dbErr,   setDbErr]   = useState("");
 
@@ -827,7 +932,7 @@ export default function KasirLite(){
           try{ usrs=await db.getUsers(); if(Object.keys(usrs).length>0) break; }
           catch(e){ if(i<2) await new Promise(r=>setTimeout(r,1000)); }
         }
-        const [prods,outs,stks,sa]=await Promise.all([
+        const [prods,outs,stks,sa,po,ap]=await Promise.all([
           db.getProducts().catch(()=>[]),
           db.getOutlets().catch(()=>[]),
           db.getStocks().catch(()=>({})),
@@ -835,10 +940,17 @@ export default function KasirLite(){
             const names=(r.data||[]).map(x=>x.app_name||x.nama||x.name).filter(Boolean);
             return names.length>0?names:DEFAULT_APPS;
           }).catch(()=>DEFAULT_APPS),
+          supabase.from('product_order').select('*').order('urutan').then(r=>(r.data||[]).map(x=>x.product_id||x.productId)).catch(()=>[]),
+          supabase.from('outlet_product_aktif').select('*').then(r=>{
+            const m={};(r.data||[]).forEach(x=>{if(!m[x.outlet_id])m[x.outlet_id]=[];m[x.outlet_id].push(x.product_id);});
+            return m;
+          }).catch(()=>({})),
         ]);
         clearTimeout(to);
         setUsers(usrs); setProducts(prods); setOutlets(outs); setStocks(stks);
         setSaldoApps(sa.length>0?sa:DEFAULT_APPS);
+        if(po.length>0) setProdOrder(po);
+        if(Object.keys(ap).length>0) setAktifProds(ap);
         setLoading(false);
       }catch(e){ clearTimeout(to); setDbErr("Gagal konek DB."); setLoading(false); }
     };
@@ -972,6 +1084,7 @@ export default function KasirLite(){
   if(scene==="main") return(
     <KasirMain
       user={user} outlet={outlet} products={products} stocks={stocks}
+      prodOrder={prodOrder} aktifProds={aktifProds}
       shift={shift} onAddTrx={()=>{}} onTutupShift={handleTutupShiftKasir}
       onLogout={()=>{ setUser(null); setShift(null); setBankShift(null); setOutlet(null); try{['klite_user','klite_outlet','klite_shift','klite_bankshift'].forEach(k=>localStorage.removeItem(k));}catch{} setScene("login"); }}
       onMenu={()=>setScene("pilih_outlet")}
