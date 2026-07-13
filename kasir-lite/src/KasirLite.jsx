@@ -376,13 +376,26 @@ function FormTrxBank({onSave,onCancel,editData}){
   const nomNum=+nominal||0;
   const feeNum=+fee||0;
   const netNominal = jenis==="masuk"
-    ? (feeType==="fee"?nomNum+feeNum:feeType==="dipotong"?nomNum-feeNum:nomNum)
-    : feeType==="tarik"?-(nomNum):-(nomNum);
+    ? feeType==="fee"     ? nomNum+feeNum
+    : feeType==="dipotong"? nomNum-feeNum
+    : nomNum
+    : feeType==="tarik"   ? -(nomNum)   // keluar tarik: nominal keluar, fee masuk terpisah
+    : feeType==="fee"     ? -(nomNum+feeNum)
+    : feeType==="dipotong"? -(nomNum-feeNum)
+    : -(nomNum);
 
   const handle=async()=>{
     if(!nama.trim()||!nomNum) return alert("Isi nama dan nominal!");
     setSaving(true);
-    await onSave({nama,jenis,feeType,fee:feeNum,nominal:nomNum,netNominal});
+    if(jenis==="keluar"&&feeType==="tarik"&&feeNum>0){
+      // Tarik: 2 transaksi — keluar nominal, masuk fee
+      await onSave([
+        {nama:nama+" (TARIK)",jenis:"keluar",feeType:"tarik",fee:0,nominal:nomNum,netNominal:-nomNum},
+        {nama:nama+" (FEE TARIK)",jenis:"masuk",feeType:"tarik",fee:0,nominal:feeNum,netNominal:+feeNum},
+      ]);
+    } else {
+      await onSave([{nama,jenis,feeType,fee:feeNum,nominal:nomNum,netNominal}]);
+    }
     setSaving(false);
   };
 
@@ -400,12 +413,12 @@ function FormTrxBank({onSave,onCancel,editData}){
       <label style={lbl}>Nominal *</label>
       <input style={inp} type="number" value={nominal} onChange={e=>setNominal(e.target.value)} placeholder="0"/>
       <label style={lbl}>Tipe Fee</label>
-      <div style={{display:"flex",gap:6,marginBottom:10}}>
+      <div style={{display:"flex",gap:6,marginBottom:10,flexWrap:"wrap"}}>
         {(jenis==="masuk"
           ?[{k:"include",l:"Include"},{k:"fee",l:"+ Fee"},{k:"dipotong",l:"- Dipotong"}]
-          :[{k:"include",l:"Include"},{k:"tarik",l:"Fee Tarik"}]
+          :[{k:"include",l:"Include"},{k:"fee",l:"+ Fee"},{k:"dipotong",l:"- Dipotong"},{k:"tarik",l:"Tarik (Fee Pisah)"}]
         ).map(f=>(
-          <button key={f.k} onClick={()=>setFeeType(f.k)} style={{flex:1,padding:"7px 4px",borderRadius:9,border:`2px solid ${feeType===f.k?C.bank:C.border}`,background:feeType===f.k?C.bankLight:"#fff",fontWeight:700,fontSize:11,cursor:"pointer",color:feeType===f.k?C.bank:C.muted}}>{f.l}</button>
+          <button key={f.k} onClick={()=>setFeeType(f.k)} style={{flex:1,minWidth:"40%",padding:"8px 4px",borderRadius:9,border:`2px solid ${feeType===f.k?C.bank:C.border}`,background:feeType===f.k?C.bankLight:"#fff",fontWeight:700,fontSize:12,cursor:"pointer",color:feeType===f.k?C.bank:C.muted}}>{f.l}</button>
         ))}
       </div>
       {feeType!=="include"&&(
@@ -1070,10 +1083,18 @@ export default function KasirLite(){
     }catch(e){ alert("Gagal tutup shift bank: "+e.message); }
   },[bankShift,outlet,user,isGabungan]);
 
-  const handleAddBankTrx=useCallback(async(data)=>{
-    const row={id:uid(),waktu:now(),tgl:today(),outletId:outlet.id,shiftId:bankShift?.id,...data};
-    await dbBank.addTransaction({...row,outlet_id:outlet.id,shift_id:bankShift?.id,fee_type:data.feeType,net_nominal:data.netNominal});
-    setBankTrxList(prev=>[row,...prev]);
+  const handleAddBankTrx=useCallback(async(dataOrArr)=>{
+    const arr = Array.isArray(dataOrArr)?dataOrArr:[dataOrArr];
+    for(const data of arr){
+      const row={id:uid(),waktu:now(),tgl:today(),outletId:outlet.id,shiftId:bankShift?.id,...data};
+      await supabase.from('bank_transactions').insert({
+        id:row.id, waktu:row.waktu, tgl:row.tgl,
+        outlet_id:outlet.id, shift_id:bankShift?.id,
+        nama:data.nama, jenis:data.jenis, fee_type:data.feeType,
+        fee:data.fee, nominal:data.nominal, net_nominal:data.netNominal,
+      });
+      setBankTrxList(prev=>prev.find(x=>x.id===row.id)?prev:[row,...prev]);
+    }
   },[outlet,bankShift]);
 
   // ── Render ──────────────────────────────────────────────────────────────────
