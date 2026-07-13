@@ -236,8 +236,8 @@ function TutupShiftGabungan({shift,bankShift,txHariIni,bankTrxList,saldoApps,out
           {l:`+ Omset Kasir Hari Ini`,v:"+"+fmtRp(omsetKasir),c:"#86efac"},
           {l:`= Kas Sistem Kasir`,v:fmtRp(kasSystemKasir),c:"#fff",bold:true},
           {l:`+ Kas Bersih Bank (${bankTrxShift.length} transaksi)`,v:"+"+fmtRp(kasBersihBank),c:"#93c5fd"},
-          feeBankTotal>0&&{l:`   (termasuk fee bank: ${fmtRp(feeBankTotal)})`,v:"",c:"rgba(255,255,255,.5)",small:true},
-        ].filter(Boolean).map((r,i)=>(
+          ...(feeBankTotal>0?[{l:`   (termasuk fee bank: ${fmtRp(feeBankTotal)})`,v:"",c:"rgba(255,255,255,.5)",small:true}]:[]),
+        ].map((r,i)=>(
           <div key={i} style={{display:"flex",justifyContent:"space-between",marginBottom:r.bold?0:6}}>
             <span style={{fontSize:r.small?10:12,color:r.c,fontWeight:r.bold?800:600}}>{r.l}</span>
             <span style={{fontSize:r.small?10:13,color:r.c,fontWeight:r.bold?900:700}}>{r.v}</span>
@@ -432,21 +432,6 @@ function TutupShiftBank({shift,trxList,onTutup,onCancel}){
   );
 }
 
-  const totalP = useMemo(()=>txHariIni.reduce((s,t)=>{
-    const rv=(t.items||[]).filter(i=>i.refunded).reduce((rs,i)=>rs+i.price*i.qty,0);
-    return s+t.total-rv;
-  },0),[txHariIni]);
-
-  const st=+setor||0,htg=+hutang||0,pnd=+pending||0,pk=+klr||0;
-  const kasSystem=totalP-st-htg-pnd-pk;
-  const kasFisik=+kasNyata||0;
-  const selisih=kasFisik-kasSystem;
-
-  const handle=async()=>{
-    if(!kasNyata) return alert("Isi dulu kas nyata di laci!");
-    if(!navigator.onLine) return alert("Tidak ada koneksi internet!");
-    setClosing(true);
-    await onTutup({saldoAppsClose:{},cashKembC:0,setorTunai:st,hutang:htg,pending:pnd,pengeluaran:pk,noteKlr,kasNyataSystem:kasSystem,kasNyataFisik:kasFisik,selisih,notes});
 // ─── SETOR TUNAI FORM ────────────────────────────────────────────────────────
 function SetorTunaiForm({onSave,onCancel}){
   const [nominal,setNominal]=useState("");
@@ -1135,7 +1120,9 @@ export default function KasirLite(){
     return outlets.filter(o=>ids.includes(String(o.id)));
   },[user,outlets]);
 
-  const isGabungan = user?.role==="bank" || user?.role==="staff";
+  const [modeGabungan, setModeGabungan] = useState(()=>{ try{ return localStorage.getItem('klite_mode')==='gabungan'; }catch{ return false; }});
+
+  const isGabungan = modeGabungan || user?.role==="bank";
   const isKasirOnly = user?.role==="kasir" || user?.role==="karyawan";
 
   // Simpan session ke localStorage setiap berubah
@@ -1200,11 +1187,12 @@ export default function KasirLite(){
   const handlePilihOutlet=useCallback((o)=>{
     setOutlet(o);
     if(shift||bankShift){ setScene("main"); return; }
-    // Role bank → langsung ke pilih mode (kasir atau bank)
-    // Role kasir → langsung buka shift kasir
-    if(user?.role==="bank"||user?.role==="staff"||user?.role==="admin"||user?.role==="bos"){
+    // Hanya role bank/staff/admin yang bisa pilih mode
+    const canBank = user?.role==="bank"||user?.role==="staff"||user?.role==="admin"||user?.role==="bos";
+    if(canBank){
       setScene("pilih_mode");
     } else {
+      // Role kasir/karyawan langsung buka shift kasir
       setScene("buka_shift");
     }
   },[user,shift,bankShift]);
@@ -1328,11 +1316,11 @@ export default function KasirLite(){
       <div style={{background:"#fff",borderRadius:20,padding:24,width:"100%",maxWidth:380}}>
         <div style={{fontWeight:900,fontSize:17,marginBottom:4,color:C.primaryDark}}>Pilih Mode</div>
         <div style={{fontSize:12,color:C.muted,marginBottom:20}}>Outlet: <b>{outlet?.nama}</b></div>
-        <button onClick={()=>setScene("buka_shift")} style={{...btn(C.primaryLight,C.primaryDark,{marginBottom:12,border:`2px solid ${C.border}`,padding:"16px"})}}>
+        <button onClick={()=>{ setModeGabungan(false); try{localStorage.setItem('klite_mode','kasir');}catch{} setScene("buka_shift"); }} style={{...btn(C.primaryLight,C.primaryDark,{marginBottom:12,border:`2px solid ${C.border}`,padding:"16px"})}}>
           🛒 Kasir<br/>
           <span style={{fontSize:11,fontWeight:600,opacity:.7}}>Buka shift kasir — transaksi penjualan</span>
         </button>
-        <button onClick={()=>setScene("buka_shift_bank")} style={{...btn(C.bankLight,C.bank,{marginBottom:12,border:`2px solid #bfdbfe`,padding:"16px"})}}>
+        <button onClick={()=>{ setModeGabungan(true); try{localStorage.setItem('klite_mode','gabungan');}catch{} setScene("buka_shift_bank"); }} style={{...btn(C.bankLight,C.bank,{marginBottom:12,border:`2px solid #bfdbfe`,padding:"16px"})}}>
           🏦 Kasir + Bank (1 Laci)<br/>
           <span style={{fontSize:11,fontWeight:600,opacity:.7}}>Buka shift bank — kasir & transaksi bank</span>
         </button>
@@ -1350,7 +1338,7 @@ export default function KasirLite(){
       user={user} outlet={outlet} products={products} stocks={stocks}
       prodOrder={prodOrder} aktifProds={aktifProds}
       shift={shift} onAddTrx={()=>{}} onTutupShift={handleTutupShiftKasir}
-      onLogout={()=>{ setUser(null); setShift(null); setBankShift(null); setOutlet(null); try{['klite_user','klite_outlet','klite_shift','klite_bankshift'].forEach(k=>localStorage.removeItem(k));}catch{} setScene("login"); }}
+      onLogout={()=>{ setUser(null); setShift(null); setBankShift(null); setOutlet(null); setModeGabungan(false); try{['klite_user','klite_outlet','klite_shift','klite_bankshift','klite_mode'].forEach(k=>localStorage.removeItem(k));}catch{} setScene("login"); }}
       onMenu={()=>setScene("pilih_outlet")}
       bankShift={bankShift} bankTrxList={bankTrxList}
       onAddBankTrx={handleAddBankTrx} onTutupBankShift={handleTutupShiftBank}
