@@ -11,7 +11,7 @@ const today= () => { const d=new Date(); return `${d.getDate()}/${d.getMonth()+1
 const todayISO = () => new Date().toISOString().split('T')[0];
 const fmtRp= n => "Rp "+Math.round(+n||0).toLocaleString("id-ID");
 
-// ─── Design tokens ────────────────────────────────────────────────────────────
+const DEFAULT_APPS = ["DIGIPOS","SIDIVA","RITA","OK","DANA","OVO","GOPAY","SHOPEEPAY","LINKAJA","M-KIOS","SIMPEL AMMAR","SIMPEL SULTAN","SIMPEL CIKRIK","MITRA","GRAB"];
 const C = {
   primary:"#0d9488", primaryDark:"#0a7a70", primaryLight:"#e0faf5",
   bank:"#2563eb", bankLight:"#eff6ff",
@@ -100,7 +100,7 @@ function LoginPage({users,onLogin}){
 
 // ─── BUKA SHIFT KASIR ─────────────────────────────────────────────────────────
 function BukaShiftKasir({user,outlet,saldoApps,onBuka,onCancel}){
-  const APPS = Array.isArray(saldoApps)&&saldoApps.length>0 ? saldoApps : ["Digipos","Sidiva","Rita","OK","Dana","OVO","GoPay","ShopeePay","LinkAja","M-Kios"];
+  const APPS = Array.isArray(saldoApps)&&saldoApps.length>0 ? saldoApps : DEFAULT_APPS;
   const [cashKemb,setCashKemb]=useState("");
   const [saldo,setSaldo]=useState(()=>{const m={};APPS.forEach(a=>m[a]="");return m;});
   const totalApps = useMemo(()=>Object.values(saldo).reduce((s,v)=>s+(+v||0),0),[saldo]);
@@ -142,7 +142,7 @@ function BukaShiftKasir({user,outlet,saldoApps,onBuka,onCancel}){
 
 // ─── BUKA SHIFT BANK ─────────────────────────────────────────────────────────
 function BukaShiftBank({user,outlet,saldoApps,onBuka,onCancel}){
-  const APPS = Array.isArray(saldoApps)&&saldoApps.length>0 ? saldoApps : ["Digipos","Sidiva","Rita","OK","Dana","OVO","GoPay","ShopeePay","LinkAja","M-Kios"];
+  const APPS = Array.isArray(saldoApps)&&saldoApps.length>0 ? saldoApps : DEFAULT_APPS;
   const [cashKemb,setCashKemb]=useState("");
   const [saldo,setSaldo]=useState(()=>{const m={};APPS.forEach(a=>m[a]="");return m;});
   const totalApps = useMemo(()=>Object.values(saldo).reduce((s,v)=>s+(+v||0),0),[saldo]);
