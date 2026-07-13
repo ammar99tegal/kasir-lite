@@ -534,14 +534,22 @@ function KasirMain({user,outlet,products,stocks,prodOrder=[],aktifProds={},shift
     timerRef.current=setTimeout(()=>setToast({msg:"",type:""}),2500);
   };
 
-  // Load transaksi hari ini saja
+  // Load transaksi hari ini — filter by outlet + tanggal
   useEffect(()=>{
     const load=async()=>{
       try{
+        // Ambil semua transaksi outlet hari ini (30 hari terakhir untuk keamanan)
+        const cutoff=new Date(); cutoff.setDate(cutoff.getDate()-1);
         const {data}=await supabase.from('transactions').select('*')
-          .eq('outlet_id',outlet.id).gte('created_at',todayISO())
+          .eq('outlet_id',outlet.id)
+          .gte('created_at',cutoff.toISOString())
           .order('created_at',{ascending:false});
-        if(data) setTxHariIni(data.map(t=>({...t,items:t.items||[]})));
+        if(data){
+          const tgl=today(); // format dd/m/yyyy
+          // Filter yang tanggalnya hari ini (format date di transaksi)
+          const filtered=data.filter(t=>t.date===tgl).map(t=>({...t,items:t.items||[]}));
+          setTxHariIni(filtered);
+        }
       }catch(e){ console.warn('load tx:',e); }
     };
     load();
@@ -773,11 +781,11 @@ function KasirMain({user,outlet,products,stocks,prodOrder=[],aktifProds={},shift
       {tab==="riwayat"&&(
         <div style={{padding:14}}>
           <div style={{fontWeight:800,fontSize:13,marginBottom:8,color:C.text}}>
-            Transaksi Hari Ini ({txHariIni.length} trx · {fmtRp(omsetHari)})
+            Transaksi Hari Ini — Shift {shift?.nama||"-"} ({txHariIni.filter(t=>!shift||t.shift_id===shift?.id).length} trx · {fmtRp(txHariIni.filter(t=>!shift||t.shift_id===shift?.id).reduce((s,t)=>{const rv=(t.items||[]).filter(i=>i.refunded).reduce((rs,i)=>rs+i.price*i.qty,0);return s+t.total-rv;},0))})
           </div>
-          {txHariIni.length===0
+          {txHariIni.filter(t=>!shift||t.shift_id===shift?.id).length===0
             ?<div style={{textAlign:"center",color:C.muted,padding:32,fontSize:13}}>Belum ada transaksi hari ini</div>
-            :txHariIni.map(t=>{
+            :txHariIni.filter(t=>!shift||t.shift_id===shift?.id).map(t=>{
               const isRefunded = (t.items||[]).every(i=>i.refunded);
               return(
                 <div key={t.id} style={{background:"#fff",borderRadius:10,padding:"10px 14px",marginBottom:6,boxShadow:"0 1px 4px rgba(0,0,0,.06)",opacity:isRefunded?.5:1}}>
