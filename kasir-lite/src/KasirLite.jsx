@@ -983,7 +983,16 @@ export default function KasirLite(){
           }).catch(()=>({})),
         ]);
         clearTimeout(to);
-        setUsers(parseUserOutletIds(usrs)); setProducts(prods); setOutlets(outs); setStocks(stks);
+        // Load user_outlets untuk filter outlet per user
+        const {data:uoRows} = await supabase.from('user_outlets').select('*').catch(()=>({data:[]}));
+        const uoMap={};
+        (uoRows||[]).forEach(r=>{ if(!uoMap[r.username])uoMap[r.username]=[]; uoMap[r.username].push(r.outlet_id); });
+        // Merge outletIds ke setiap user
+        const parsedUsrs = parseUserOutletIds(usrs);
+        Object.keys(parsedUsrs).forEach(un=>{
+          if(uoMap[un]?.length>0) parsedUsrs[un].outletIds = uoMap[un].map(String);
+        });
+        setUsers(parsedUsrs); setProducts(prods); setOutlets(outs); setStocks(stks);
         setSaldoApps(sa.length>0?sa:DEFAULT_APPS);
         if(po.length>0) setProdOrder(po);
         if(Object.keys(ap).length>0) setAktifProds(ap);
@@ -996,15 +1005,9 @@ export default function KasirLite(){
   // ── Handlers ────────────────────────────────────────────────────────────────
   const handleLogin=useCallback((u)=>{
     setUser(u);
-    // Hitung outlet yang bisa diakses user ini
-    const ids = (u.outletIds||[]).map(String).concat(u.outletId?[String(u.outletId)]:[]);
-    const allowed = (u.role==="admin"||u.role==="bos")
-      ? outlets
-      : ids.length>0 ? outlets.filter(o=>ids.includes(String(o.id))) : outlets;
-    const target = u.role==="bank" ? "buka_shift_bank" : "buka_shift";
-    if(allowed.length===1){ setOutlet(allowed[0]); setScene(target); }
-    else setScene("pilih_outlet");
-  },[outlets]);
+    // Selalu tampilkan pilih outlet dulu — user harus konfirmasi
+    setScene("pilih_outlet");
+  },[]);
 
   const handlePilihOutlet=useCallback((o)=>{
     setOutlet(o);
