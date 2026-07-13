@@ -312,6 +312,57 @@ function TutupShiftBank({shift,trxList,onTutup,onCancel}){
   );
 }
 
+// ─── SETOR TUNAI FORM ────────────────────────────────────────────────────────
+function SetorTunaiForm({onSave,onCancel}){
+  const [nominal,setNominal]=useState("");
+  const [saving,setSaving]=useState(false);
+  const handle=async()=>{
+    if(!+nominal) return alert("Isi nominal!");
+    setSaving(true);
+    await onSave({nama:"SETOR TUNAI",jenis:"keluar",feeType:"include",fee:0,nominal:+nominal,netNominal:-(+nominal)});
+    setSaving(false);
+  };
+  return(
+    <>
+      <label style={lbl}>Nominal Setor *</label>
+      <input style={inp} type="number" value={nominal} onChange={e=>setNominal(e.target.value)} placeholder="0" autoFocus/>
+      <div style={{display:"flex",gap:8,marginTop:4}}>
+        <button onClick={onCancel} style={btn("#f1f5f9",C.text,{flex:1})}>Batal</button>
+        <button onClick={handle} disabled={saving||!+nominal} style={btn(saving||!+nominal?"#ccc":C.danger,"#fff",{flex:2})}>
+          {saving?"⏳...":"⬆ Setor Tunai"}
+        </button>
+      </div>
+    </>
+  );
+}
+
+// ─── PINJAM VOUCHER FORM ─────────────────────────────────────────────────────
+function PinjamVoucherForm({onSave,onCancel}){
+  const [nama,setNama]=useState("");
+  const [nominal,setNominal]=useState("");
+  const [saving,setSaving]=useState(false);
+  const handle=async()=>{
+    if(!nama.trim()||!+nominal) return alert("Isi nama dan nominal!");
+    setSaving(true);
+    await onSave({nama:"BANK PINJAM: "+nama,jenis:"masuk",feeType:"include",fee:0,nominal:+nominal,netNominal:+(+nominal)});
+    setSaving(false);
+  };
+  return(
+    <>
+      <label style={lbl}>Keterangan *</label>
+      <input style={inp} value={nama} onChange={e=>setNama(e.target.value)} placeholder="Contoh: Voucher Indosat 50k"/>
+      <label style={lbl}>Nominal *</label>
+      <input style={inp} type="number" value={nominal} onChange={e=>setNominal(e.target.value)} placeholder="0"/>
+      <div style={{display:"flex",gap:8,marginTop:4}}>
+        <button onClick={onCancel} style={btn("#f1f5f9",C.text,{flex:1})}>Batal</button>
+        <button onClick={handle} disabled={saving} style={btn(saving?"#ccc":C.bank,"#fff",{flex:2})}>
+          {saving?"⏳...":"⬇ Catat Pinjam"}
+        </button>
+      </div>
+    </>
+  );
+}
+
 // ─── CATAT TRANSAKSI BANK ─────────────────────────────────────────────────────
 function FormTrxBank({onSave,onCancel,editData}){
   const [nama,setNama]=useState(editData?.nama||"");
@@ -325,7 +376,7 @@ function FormTrxBank({onSave,onCancel,editData}){
   const feeNum=+fee||0;
   const netNominal = jenis==="masuk"
     ? (feeType==="fee"?nomNum+feeNum:feeType==="dipotong"?nomNum-feeNum:nomNum)
-    : -(feeType==="tarik"?nomNum:nomNum);
+    : feeType==="tarik"?-(nomNum):-(nomNum);
 
   const handle=async()=>{
     if(!nama.trim()||!nomNum) return alert("Isi nama dan nominal!");
@@ -347,20 +398,19 @@ function FormTrxBank({onSave,onCancel,editData}){
       <input style={inp} value={nama} onChange={e=>setNama(e.target.value)} placeholder="Contoh: TF BNI 500K, Tarik Dana..."/>
       <label style={lbl}>Nominal *</label>
       <input style={inp} type="number" value={nominal} onChange={e=>setNominal(e.target.value)} placeholder="0"/>
-      {jenis==="masuk"&&(
+      <label style={lbl}>Tipe Fee</label>
+      <div style={{display:"flex",gap:6,marginBottom:10}}>
+        {(jenis==="masuk"
+          ?[{k:"include",l:"Include"},{k:"fee",l:"+ Fee"},{k:"dipotong",l:"- Dipotong"}]
+          :[{k:"include",l:"Include"},{k:"tarik",l:"Fee Tarik"}]
+        ).map(f=>(
+          <button key={f.k} onClick={()=>setFeeType(f.k)} style={{flex:1,padding:"7px 4px",borderRadius:9,border:`2px solid ${feeType===f.k?C.bank:C.border}`,background:feeType===f.k?C.bankLight:"#fff",fontWeight:700,fontSize:11,cursor:"pointer",color:feeType===f.k?C.bank:C.muted}}>{f.l}</button>
+        ))}
+      </div>
+      {feeType!=="include"&&(
         <>
-          <label style={lbl}>Tipe Fee</label>
-          <div style={{display:"flex",gap:6,marginBottom:10}}>
-            {[{k:"include",l:"Include"},{k:"fee",l:"+ Fee"},{k:"dipotong",l:"- Dipotong"}].map(f=>(
-              <button key={f.k} onClick={()=>setFeeType(f.k)} style={{flex:1,padding:"7px 4px",borderRadius:9,border:`2px solid ${feeType===f.k?C.bank:C.border}`,background:feeType===f.k?C.bankLight:"#fff",fontWeight:700,fontSize:11,cursor:"pointer",color:feeType===f.k?C.bank:C.muted}}>{f.l}</button>
-            ))}
-          </div>
-          {feeType!=="include"&&(
-            <>
-              <label style={lbl}>Nominal Fee</label>
-              <input style={inp} type="number" value={fee} onChange={e=>setFee(e.target.value)} placeholder="0"/>
-            </>
-          )}
+          <label style={lbl}>Nominal Fee</label>
+          <input style={inp} type="number" value={fee} onChange={e=>setFee(e.target.value)} placeholder="0"/>
         </>
       )}
       <div style={{background:netNominal>=0?"#f0fdf4":"#fff0f0",border:`2px solid ${netNominal>=0?"#86efac":"#fca5a5"}`,borderRadius:10,padding:"10px 14px",marginBottom:14,display:"flex",justifyContent:"space-between",alignItems:"center"}}>
@@ -378,7 +428,7 @@ function FormTrxBank({onSave,onCancel,editData}){
 }
 
 // ─── KASIR MAIN ───────────────────────────────────────────────────────────────
-function KasirMain({user,outlet,products,stocks,shift,onAddTrx,onTutupShift,onLogout,bankShift,bankTrxList,onAddBankTrx,onTutupBankShift,isGabungan}){
+function KasirMain({user,outlet,products,stocks,shift,onAddTrx,onTutupShift,onLogout,onMenu,bankShift,bankTrxList,onAddBankTrx,onTutupBankShift,isGabungan}){
   const [tab,setTab]=useState("kasir"); // kasir | bank | riwayat
   const [search,setSearch]=useState("");
   const [cat,setCat]=useState("Semua");
@@ -389,6 +439,8 @@ function KasirMain({user,outlet,products,stocks,shift,onAddTrx,onTutupShift,onLo
   const [showTutupKasir,setShowTutupKasir]=useState(false);
   const [showTutupBank,setShowTutupBank]=useState(false);
   const [showFormBank,setShowFormBank]=useState(false);
+  const [showSetorTunai,setShowSetorTunai]=useState(false);
+  const [showPinjamVoucher,setShowPinjamVoucher]=useState(false);
   const [txHariIni,setTxHariIni]=useState([]);
   const [toast,setToast]=useState({msg:"",type:""});
   const timerRef=useRef(null);
@@ -498,7 +550,7 @@ function KasirMain({user,outlet,products,stocks,shift,onAddTrx,onTutupShift,onLo
           style={{background:"rgba(220,38,38,.8)",border:"none",borderRadius:10,padding:"7px 12px",color:"#fff",fontWeight:800,fontSize:11,cursor:"pointer"}}>
           🔴 Tutup
         </button>
-        <button onClick={()=>setScene("pilih_outlet")} style={{background:"rgba(255,255,255,.15)",border:"none",borderRadius:10,padding:"7px 10px",color:"#fff",fontWeight:700,fontSize:11,cursor:"pointer"}}>
+        <button onClick={()=>onMenu()} style={{background:"rgba(255,255,255,.15)",border:"none",borderRadius:10,padding:"7px 10px",color:"#fff",fontWeight:700,fontSize:11,cursor:"pointer"}}>
           ← Menu
         </button>
       </div>
@@ -592,20 +644,28 @@ function KasirMain({user,outlet,products,stocks,shift,onAddTrx,onTutupShift,onLo
               </div>
             ))}
           </div>
-          <button onClick={()=>setShowFormBank(true)} style={btn(C.bank,"#fff",{marginBottom:10})}>
-            + Catat Transaksi Bank
-          </button>
+          <div style={{display:"flex",gap:8,marginBottom:10}}>
+            <button onClick={()=>setShowSetorTunai(true)} style={{flex:1,padding:"10px",borderRadius:10,border:`2px solid ${C.danger}`,background:"#fff0f0",color:C.danger,fontWeight:800,fontSize:12,cursor:"pointer"}}>
+              ⬆ Setor Tunai
+            </button>
+            <button onClick={()=>setShowFormBank(true)} style={{flex:1,padding:"10px",borderRadius:10,border:"none",background:C.bank,color:"#fff",fontWeight:800,fontSize:12,cursor:"pointer"}}>
+              + Catat Transaksi
+            </button>
+            <button onClick={()=>setShowPinjamVoucher(true)} style={{flex:1,padding:"10px",borderRadius:10,border:`2px solid ${C.bank}`,background:C.bankLight,color:C.bank,fontWeight:800,fontSize:12,cursor:"pointer"}}>
+              ⬇ Pinjam Voucher
+            </button>
+          </div>
           <div style={{fontWeight:800,fontSize:13,marginBottom:8,color:C.text}}>
             Transaksi Hari Ini ({bankTrxHari.length})
           </div>
           {bankTrxHari.length===0
             ?<div style={{textAlign:"center",color:C.muted,padding:32,fontSize:13}}>Belum ada transaksi hari ini</div>
-            :bankTrxHari.map((t,i)=>(
+            :bankTrxHari.map((t)=>(
               <div key={t.id} style={{background:"#fff",borderRadius:10,padding:"10px 14px",marginBottom:6,display:"flex",alignItems:"center",gap:10,boxShadow:"0 1px 4px rgba(0,0,0,.06)"}}>
                 <div style={{width:36,height:36,borderRadius:10,background:t.netNominal>0?"#f0fdf4":"#fff0f0",display:"flex",alignItems:"center",justifyContent:"center",fontSize:16,flexShrink:0}}>{t.netNominal>0?"⬇":"⬆"}</div>
                 <div style={{flex:1,minWidth:0}}>
                   <div style={{fontWeight:700,fontSize:13,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{t.nama}</div>
-                  <div style={{fontSize:10,color:C.muted}}>{t.waktu}</div>
+                  <div style={{fontSize:10,color:C.muted}}>{t.waktu}{t.fee>0&&<span style={{color:C.bank,marginLeft:6}}>+fee {fmtRp(t.fee)}</span>}</div>
                 </div>
                 <div style={{fontWeight:900,fontSize:14,color:t.netNominal>0?"#16a34a":C.danger,flexShrink:0}}>
                   {t.netNominal>0?"+":""}{fmtRp(t.netNominal)}
@@ -624,20 +684,39 @@ function KasirMain({user,outlet,products,stocks,shift,onAddTrx,onTutupShift,onLo
           </div>
           {txHariIni.length===0
             ?<div style={{textAlign:"center",color:C.muted,padding:32,fontSize:13}}>Belum ada transaksi hari ini</div>
-            :txHariIni.map(t=>(
-              <div key={t.id} style={{background:"#fff",borderRadius:10,padding:"10px 14px",marginBottom:6,boxShadow:"0 1px 4px rgba(0,0,0,.06)"}}>
-                <div style={{display:"flex",justifyContent:"space-between",marginBottom:4}}>
-                  <span style={{fontWeight:700,fontSize:11,color:C.muted}}>#{t.id}</span>
-                  <span style={{fontWeight:900,fontSize:14,color:C.primary}}>{fmtRp(t.total)}</span>
+            :txHariIni.map(t=>{
+              const isRefunded = (t.items||[]).every(i=>i.refunded);
+              return(
+                <div key={t.id} style={{background:"#fff",borderRadius:10,padding:"10px 14px",marginBottom:6,boxShadow:"0 1px 4px rgba(0,0,0,.06)",opacity:isRefunded?.5:1}}>
+                  <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:4}}>
+                    <span style={{fontWeight:700,fontSize:11,color:C.muted}}>#{t.id}</span>
+                    <div style={{display:"flex",alignItems:"center",gap:8}}>
+                      {isRefunded&&<span style={{fontSize:10,fontWeight:700,color:C.danger,background:"#fff0f0",padding:"2px 8px",borderRadius:10}}>REFUND</span>}
+                      <span style={{fontWeight:900,fontSize:14,color:isRefunded?C.muted:C.primary}}>{fmtRp(t.total)}</span>
+                    </div>
+                  </div>
+                  <div style={{fontSize:11,color:C.muted,marginBottom:6}}>{t.date} {t.time}</div>
+                  <div style={{display:"flex",flexWrap:"wrap",gap:4,marginBottom:isRefunded?0:6}}>
+                    {(t.items||[]).map((i,idx)=>(
+                      <span key={idx} style={{background:i.refunded?"#f1f5f9":C.primaryLight,color:i.refunded?C.muted:C.primary,borderRadius:6,padding:"2px 7px",fontSize:10,fontWeight:700,textDecoration:i.refunded?"line-through":"none"}}>{i.name} ×{i.qty}</span>
+                    ))}
+                  </div>
+                  {!isRefunded&&(
+                    <button onClick={async()=>{
+                      if(!window.confirm("Refund semua item transaksi ini?")) return;
+                      try{
+                        const updated={...t,items:(t.items||[]).map(i=>({...i,refunded:true}))};
+                        await supabase.from('transactions').update({items:updated.items}).eq('id',t.id);
+                        setTxHariIni(prev=>prev.map(x=>x.id===t.id?updated:x));
+                        notify("✓ Refund berhasil","ok");
+                      }catch(e){ notify("Gagal refund: "+e.message,"err"); }
+                    }} style={{background:"#fff0f0",border:`1px solid #fca5a5`,borderRadius:8,padding:"4px 10px",color:C.danger,fontWeight:700,fontSize:11,cursor:"pointer"}}>
+                      🔄 Refund
+                    </button>
+                  )}
                 </div>
-                <div style={{fontSize:11,color:C.muted,marginBottom:4}}>{t.date} {t.time}</div>
-                <div style={{display:"flex",flexWrap:"wrap",gap:4}}>
-                  {(t.items||[]).filter(i=>!i.refunded).map((i,idx)=>(
-                    <span key={idx} style={{background:C.primaryLight,color:C.primary,borderRadius:6,padding:"2px 7px",fontSize:10,fontWeight:700}}>{i.name} ×{i.qty}</span>
-                  ))}
-                </div>
-              </div>
-            ))
+              );
+            })
           }
         </div>
       )}
@@ -683,6 +762,20 @@ function KasirMain({user,outlet,products,stocks,shift,onAddTrx,onTutupShift,onLo
       {/* Modal Catat Transaksi Bank */}
       {showFormBank&&(
         <FormTrxBank onSave={async(data)=>{await onAddBankTrx(data);setShowFormBank(false);}} onCancel={()=>setShowFormBank(false)}/>
+      )}
+
+      {/* Modal Setor Tunai */}
+      {showSetorTunai&&(
+        <Modal title="⬆ Setor Tunai" onClose={()=>setShowSetorTunai(false)}>
+          <SetorTunaiForm onSave={async(data)=>{await onAddBankTrx(data);setShowSetorTunai(false);notify("Setor tunai tercatat ✓","ok");}} onCancel={()=>setShowSetorTunai(false)}/>
+        </Modal>
+      )}
+
+      {/* Modal Bank Pinjam Voucher */}
+      {showPinjamVoucher&&(
+        <Modal title="⬇ Bank Pinjam Voucher" onClose={()=>setShowPinjamVoucher(false)}>
+          <PinjamVoucherForm onSave={async(data)=>{await onAddBankTrx(data);setShowPinjamVoucher(false);notify("Pinjam voucher tercatat ✓","ok");}} onCancel={()=>setShowPinjamVoucher(false)}/>
+        </Modal>
       )}
     </div>
   );
@@ -880,7 +973,8 @@ export default function KasirLite(){
     <KasirMain
       user={user} outlet={outlet} products={products} stocks={stocks}
       shift={shift} onAddTrx={()=>{}} onTutupShift={handleTutupShiftKasir}
-      onLogout={()=>{ setUser(null); setShift(null); setBankShift(null); setScene("login"); }}
+      onLogout={()=>{ setUser(null); setShift(null); setBankShift(null); setOutlet(null); try{['klite_user','klite_outlet','klite_shift','klite_bankshift'].forEach(k=>localStorage.removeItem(k));}catch{} setScene("login"); }}
+      onMenu={()=>setScene("pilih_outlet")}
       bankShift={bankShift} bankTrxList={bankTrxList}
       onAddBankTrx={handleAddBankTrx} onTutupBankShift={handleTutupShiftBank}
       isGabungan={isGabungan}
