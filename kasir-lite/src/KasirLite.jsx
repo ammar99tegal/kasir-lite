@@ -680,6 +680,8 @@ function KasirMain({user,outlet,products,stocks,prodOrder=[],aktifProds={},shift
   const [cashInput,setCashInput]=useState("");
   const [paying,setPaying]=useState(false);
   const [debugInfo,setDebugInfo]=useState("");
+  const [showManual,setShowManual]=useState(false);
+  const [manualForm,setManualForm]=useState({name:"",modal:"0",price:"0",qty:"1"});
   const [manualForm,setManualForm]=useState({name:"",modal:"0",price:"0",qty:"1"});
   const [showTutupKasir,setShowTutupKasir]=useState(false);
   const [showTutupBank,setShowTutupBank]=useState(false);
