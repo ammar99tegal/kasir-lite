@@ -312,8 +312,17 @@ function TutupShiftGabungan({shift,bankShift,txHariIni,bankTrxList,saldoApps,out
 }
 
 // ─── TUTUP SHIFT KASIR (standalone) ──────────────────────────────────────────
-function TutupShiftKasir({shift,txHariIni,onTutup,onCancel}){
+function TutupShiftKasir({shift,txHariIni,saldoApps=[],onTutup,onCancel}){
+  const APPS = Array.isArray(saldoApps)&&saldoApps.length>0 ? saldoApps : DEFAULT_APPS;
+  const blank=()=>{const m={};APPS.forEach(a=>{m[a]="";});return m;};
+
+  const [saldoClose,setSaldoClose]=useState(blank());
+  const [cashKembC,setCashKembC]=useState("");
   const [setor,setSetor]=useState("");
+  const [hutang,setHutang]=useState("");
+  const [pending,setPending]=useState("");
+  const [klr,setKlr]=useState("");
+  const [noteKlr,setNoteKlr]=useState("");
   const [kasNyata,setKasNyata]=useState("");
   const [notes,setNotes]=useState("");
   const [closing,setClosing]=useState(false);
@@ -323,55 +332,109 @@ function TutupShiftKasir({shift,txHariIni,onTutup,onCancel}){
     return s+t.total-rv;
   },0),[txHariIni]);
 
-  const st=+setor||0;
-  const kasSystem=totalP-st;
+  const tAppC=useMemo(()=>Object.values(saldoClose).reduce((s,v)=>s+(+v||0),0),[saldoClose]);
+  const st=+setor||0, htg=+hutang||0, pnd=+pending||0, pk=+klr||0;
+  const kasSystem=totalP-st-htg-pnd-pk;
   const kasFisik=+kasNyata||0;
   const selisih=kasFisik-kasSystem;
+
+  const iS={width:"100%",padding:"7px 10px",borderRadius:8,border:"2px solid #b2ede6",fontSize:12,outline:"none",fontFamily:"inherit"};
+  const lS={fontSize:11,fontWeight:700,color:"#444",marginBottom:3,display:"block"};
+  const Sh=({t,c="#0d9488"})=><div style={{fontWeight:800,fontSize:11,color:c,background:c==="#0d9488"?"#e0faf5":"#fff4e6",borderRadius:7,padding:"4px 10px",margin:"11px 0 7px"}}>{t}</div>;
 
   const handle=async()=>{
     if(!kasNyata) return alert("Isi dulu kas nyata di laci!");
     if(!navigator.onLine) return alert("Tidak ada koneksi internet!");
     setClosing(true);
-    await onTutup({setorTunai:st,kasNyataSystem:kasSystem,kasNyataFisik:kasFisik,selisih,notes});
+    await onTutup({
+      saldoAppsClose:saldoClose, cashKembC:+cashKembC||0,
+      setorTunai:st, hutang:htg, pending:pnd, pengeluaran:pk, noteKlr,
+      kasNyataSystem:kasSystem, kasNyataFisik:kasFisik, selisih, notes,
+    });
     setClosing(false);
   };
 
-  return(
-    <Modal title="🔴 Tutup Shift Kasir" onClose={onCancel}>
-      <div style={{background:C.primaryLight,borderRadius:10,padding:"10px 14px",marginBottom:12}}>
-        <div style={{fontSize:11,color:C.muted}}>Shift: {shift?.nama} · {txHariIni.length} transaksi</div>
-        <div style={{fontWeight:800,color:C.primary}}>Omset: {fmtRp(totalP)}</div>
-      </div>
-      <label style={lbl}>Setor Tunai (opsional)</label>
-      <input style={inp} type="number" value={setor} onChange={e=>setSetor(e.target.value)} placeholder="0"/>
-      <div style={{background:"#f8fffe",border:`2px solid ${C.border}`,borderRadius:10,padding:"10px 14px",marginBottom:12}}>
-        <div style={{display:"flex",justifyContent:"space-between"}}>
-          <span style={{fontWeight:900}}>= Kas di Laci (Sistem)</span>
-          <b style={{fontSize:17,color:C.primary}}>{fmtRp(kasSystem)}</b>
+  return (
+    <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,.45)",display:"flex",alignItems:"center",justifyContent:"center",zIndex:900}}>
+      <div style={{background:"#fff",borderRadius:18,padding:20,width:420,maxWidth:"94vw",boxShadow:"0 20px 55px rgba(0,0,0,.25)",maxHeight:"92vh",overflowY:"auto",animation:"fadeUp .2s ease",fontFamily:"'Nunito',sans-serif"}}>
+        <div style={{fontWeight:900,fontSize:15,color:"#e74c3c",marginBottom:12}}>🔴 Tutup Shift</div>
+
+        <div style={{background:"#f0faf8",borderRadius:9,padding:"7px 11px",marginBottom:10,fontSize:12,color:"#555"}}>
+          Shift: <b style={{color:"#0d9488"}}>{shift?.nama}</b> | Mulai: <b>{shift?.start}</b>
         </div>
-      </div>
-      <label style={{...lbl,fontSize:13}}>Kas Nyata di Laci *</label>
-      <div style={{background:C.bg,borderRadius:10,padding:"10px 14px",marginBottom:12,display:"flex",alignItems:"center",gap:8,border:`2px solid ${kasNyata?C.primary:C.border}`}}>
-        <span style={{fontWeight:700,color:C.primary}}>Rp</span>
-        <input type="number" value={kasNyata} onChange={e=>setKasNyata(e.target.value)} style={{flex:1,border:"none",background:"transparent",fontWeight:900,fontSize:20,outline:"none",fontFamily:"inherit"}} placeholder="0"/>
-      </div>
-      {kasNyata!==""&&(
-        <div style={{background:selisih===0?"#e8f8f4":selisih>0?"#fffbe6":"#fff0f0",border:`2px solid ${selisih===0?"#2ecc71":selisih>0?C.warn:C.danger}`,borderRadius:10,padding:"10px 14px",marginBottom:12}}>
-          <div style={{display:"flex",justifyContent:"space-between",alignItems:"center"}}>
-            <span style={{fontWeight:800}}>{selisih===0?"✅ Sesuai!":selisih>0?"📈 Lebih":"📉 Kurang"}</span>
-            <span style={{fontWeight:900,fontSize:20,color:selisih===0?"#2ecc71":selisih>0?C.warn:C.danger}}>{selisih>0?"+":""}{fmtRp(selisih)}</span>
+
+        <Sh t="📱 Saldo Aplikasi Akhir (Catatan)"/>
+        <div style={{fontSize:10,color:"#aaa",fontWeight:600,marginBottom:7}}>* Hanya catatan</div>
+        <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:7}}>
+          {APPS.map(app=>(
+            <div key={app}>
+              <label style={{...lS,color:"#555"}}>Saldo {app}</label>
+              <input type="number" value={saldoClose[app]||""} onChange={e=>setSaldoClose(p=>({...p,[app]:e.target.value}))} placeholder="0" style={iS}/>
+            </div>
+          ))}
+        </div>
+        <div style={{background:"#e0faf5",borderRadius:9,padding:"9px 12px",marginTop:8,marginBottom:2,display:"flex",justifyContent:"space-between"}}>
+          <span style={{fontWeight:700,fontSize:12,color:"#0d9488"}}>Total Saldo Aplikasi</span>
+          <span style={{fontWeight:900,fontSize:15,color:"#0d9488"}}>{fmtRp(tAppC)}</span>
+        </div>
+
+        <Sh t="💵 Cash Kembalian (Catatan)" c="#f39c12"/>
+        <div style={{fontSize:10,color:"#aaa",fontWeight:600,marginBottom:6}}>* Hanya catatan, tidak masuk perhitungan</div>
+        <label style={lS}>Cash Kembalian</label>
+        <input type="number" value={cashKembC} onChange={e=>setCashKembC(e.target.value)} placeholder="0" style={{...iS,marginBottom:4}}/>
+
+        <Sh t="🧾 Rekap Penjualan"/>
+        <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8,marginBottom:8}}>
+          {[{l:"Setor Tunai Cash",v:setor,fn:setSetor},{l:"Hutang Pelanggan",v:hutang,fn:setHutang},{l:"Transaksi Pending",v:pending,fn:setPending},{l:"Pengeluaran",v:klr,fn:setKlr}].map(f=>(
+            <div key={f.l}><label style={lS}>{f.l}</label><input type="number" value={f.v} onChange={e=>f.fn(e.target.value)} placeholder="0" style={iS}/></div>
+          ))}
+        </div>
+        <div style={{marginBottom:10}}>
+          <label style={{...lS,color:"#aaa"}}>Note Pengeluaran</label>
+          <input type="text" value={noteKlr} onChange={e=>setNoteKlr(e.target.value)} placeholder="Contoh: beli plastik..." style={iS}/>
+        </div>
+
+        <div style={{background:"#f8fffe",border:"2px solid #e0f5f1",borderRadius:10,padding:"10px 13px",marginBottom:10,fontSize:12}}>
+          <div style={{display:"flex",justifyContent:"space-between",marginBottom:3}}>
+            <span style={{color:"#0d9488",fontWeight:700}}>Total Penjualan Bersih</span><b style={{color:"#0d9488"}}>{fmtRp(totalP)}</b>
+          </div>
+          <div style={{fontSize:10,color:"#aaa",marginBottom:5}}>({txHariIni.length} transaksi · sudah dikurangi refund)</div>
+          {st>0&&<div style={{display:"flex",justifyContent:"space-between",marginBottom:3}}><span style={{color:"#e74c3c"}}>( - ) Setor Tunai</span><b style={{color:"#e74c3c"}}>{fmtRp(st)}</b></div>}
+          {htg>0&&<div style={{display:"flex",justifyContent:"space-between",marginBottom:3}}><span style={{color:"#e74c3c"}}>( - ) Hutang</span><b style={{color:"#e74c3c"}}>{fmtRp(htg)}</b></div>}
+          {pnd>0&&<div style={{display:"flex",justifyContent:"space-between",marginBottom:3}}><span style={{color:"#e74c3c"}}>( - ) Pending</span><b style={{color:"#e74c3c"}}>{fmtRp(pnd)}</b></div>}
+          {pk>0&&<div style={{display:"flex",justifyContent:"space-between",marginBottom:3}}><span style={{color:"#e74c3c"}}>( - ) Pengeluaran {noteKlr&&<span style={{fontSize:10,color:"#aaa",fontStyle:"italic"}}>({noteKlr})</span>}</span><b style={{color:"#e74c3c"}}>{fmtRp(pk)}</b></div>}
+          <div style={{display:"flex",justifyContent:"space-between",paddingTop:7,borderTop:"2px solid #b2ede6",marginTop:4}}>
+            <span style={{fontWeight:900,fontSize:13}}>= Kas Nyata di Laci (Sistem)</span><b style={{fontSize:16,color:"#0d9488"}}>{fmtRp(kasSystem)}</b>
           </div>
         </div>
-      )}
-      <label style={lbl}>Catatan</label>
-      <textarea style={{...inp,resize:"vertical",minHeight:50}} value={notes} onChange={e=>setNotes(e.target.value)} placeholder="Catatan closing..."/>
-      <div style={{display:"flex",gap:8,marginTop:4}}>
-        <button onClick={onCancel} style={btn("#f1f5f9",C.text,{flex:1})}>Batal</button>
-        <button onClick={handle} disabled={closing||!kasNyata} style={btn(closing||!kasNyata?"#ccc":C.danger,"#fff",{flex:2})}>
-          {closing?"⏳ Menutup...":"Tutup & Simpan Shift"}
-        </button>
+
+        <div style={{marginBottom:10}}>
+          <label style={{...lS,fontSize:12,color:"#1a2e2a"}}>Kas Nyata di Laci (Hitung Fisik) *</label>
+          <input type="number" value={kasNyata} onChange={e=>setKasNyata(e.target.value)} placeholder="Hitung uang di laci..."
+            style={{...iS,border:`2px solid ${kasNyata?"#0d9488":"#b2ede6"}`,fontWeight:700,fontSize:13}}/>
+        </div>
+
+        {kasNyata!==""&&(
+          <div style={{background:selisih===0?"#e8f8f4":selisih>0?"#fffbe6":"#fff0f0",border:`2px solid ${selisih===0?"#2ecc71":selisih>0?"#f39c12":"#ff4757"}`,borderRadius:11,padding:"11px 13px",marginBottom:10}}>
+            <div style={{display:"flex",justifyContent:"space-between",alignItems:"center"}}>
+              <span style={{fontWeight:800,fontSize:13}}>{selisih===0?"✅ Sesuai!":selisih>0?"📈 Lebih":"📉 Kurang"}</span>
+              <span style={{fontWeight:900,fontSize:22,color:selisih===0?"#2ecc71":selisih>0?"#f39c12":"#ff4757"}}>{selisih>0?"+":""}{fmtRp(selisih)}</span>
+            </div>
+            <div style={{fontSize:11,color:"#888",marginTop:3}}>Sistem: {fmtRp(kasSystem)} → Fisik: {fmtRp(kasFisik)}</div>
+          </div>
+        )}
+
+        <label style={lS}>Catatan Shift</label>
+        <textarea value={notes} onChange={e=>setNotes(e.target.value)} placeholder="Catatan closing..." style={{...iS,resize:"vertical",minHeight:50}}/>
+
+        <div style={{display:"flex",gap:8,marginTop:14}}>
+          <button onClick={onCancel} style={{flex:1,background:"#f0f0f0",border:"none",borderRadius:9,padding:10,fontWeight:700,fontSize:12,color:"#666",cursor:"pointer",fontFamily:"inherit"}}>Batal</button>
+          <button onClick={handle} disabled={closing||!kasNyata} style={{flex:2,background:closing||!kasNyata?"#ccc":"linear-gradient(135deg,#e74c3c,#ff6b6b)",border:"none",borderRadius:9,padding:10,color:"#fff",fontWeight:800,fontSize:13,cursor:closing||!kasNyata?"not-allowed":"pointer",fontFamily:"inherit"}}>
+            {closing?"⏳ Menutup...":"Tutup & Simpan Shift"}
+          </button>
+        </div>
       </div>
-    </Modal>
+    </div>
   );
 }
 
@@ -671,7 +734,7 @@ function StokFisikTab({products,stocks,outlet,user,notify}){
 }
 
 // ─── KASIR MAIN ───────────────────────────────────────────────────────────────
-function KasirMain({user,outlet,products,stocks,prodOrder=[],aktifProds={},shift,onAddTrx,onTutupShift,onLogout,onMenu,bankShift,bankTrxList,onAddBankTrx,onTutupBankShift,isGabungan}){
+function KasirMain({user,outlet,products,stocks,prodOrder=[],aktifProds={},saldoApps=[],shift,onAddTrx,onTutupShift,onLogout,onMenu,bankShift,bankTrxList,onAddBankTrx,onTutupBankShift,isGabungan}){
   const [tab,setTab]=useState("kasir"); // kasir | bank | riwayat
   const [search,setSearch]=useState("");
   const [cat,setCat]=useState("Semua");
@@ -799,6 +862,12 @@ function KasirMain({user,outlet,products,stocks,prodOrder=[],aktifProds={},shift
       const rv=(t.items||[]).filter(i=>i.refunded).reduce((rs,i)=>rs+i.price*i.qty,0);
       return s+t.total-rv;
     },0),[txHariIni,shift?.id]);
+
+  // Khusus untuk tampilan tab Riwayat: kalau shift lagi aktif, tampilkan HANYA
+  // transaksi shift ini saja (bukan gabungan beberapa shift/hari terakhir)
+  const txShiftOnly = useMemo(()=>
+    shift ? txHariIni.filter(t=>t.shift_id===shift.id) : txHariIni
+  ,[txHariIni,shift?.id]);
 
   const omsetHari = useMemo(()=>txHariIni.reduce((s,t)=>{
     const rv=(t.items||[]).filter(i=>i.refunded).reduce((rs,i)=>rs+i.price*i.qty,0);
@@ -976,12 +1045,12 @@ function KasirMain({user,outlet,products,stocks,prodOrder=[],aktifProds={},shift
       {tab==="riwayat"&&(
         <div style={{padding:14}}>
           <div style={{fontWeight:800,fontSize:13,marginBottom:8,color:C.text}}>
-            Transaksi Shift Ini & Terbaru ({txHariIni.length} trx · Shift: {fmtRp(omsetShift)})
+            Transaksi Shift Ini ({txShiftOnly.length} trx · Shift: {fmtRp(omsetShift)})
           </div>
           {debugInfo&&<div style={{background:"#1e293b",borderRadius:8,padding:"8px 10px",marginBottom:10,fontSize:9,color:"#94a3b8",wordBreak:"break-all",lineHeight:1.5}}>{debugInfo}</div>}
-          {txHariIni.length===0
-            ?<div style={{textAlign:"center",color:C.muted,padding:32,fontSize:13}}>Belum ada transaksi</div>
-            :txHariIni.map(t=>{
+          {txShiftOnly.length===0
+            ?<div style={{textAlign:"center",color:C.muted,padding:32,fontSize:13}}>Belum ada transaksi di shift ini</div>
+            :txShiftOnly.map(t=>{
               const allRefunded = (t.items||[]).every(i=>i.refunded);
               return(
                 <div key={t.id} style={{background:"#fff",borderRadius:10,padding:"10px 14px",marginBottom:6,boxShadow:"0 1px 4px rgba(0,0,0,.06)",opacity:allRefunded?.5:1}}>
@@ -1121,7 +1190,7 @@ function KasirMain({user,outlet,products,stocks,prodOrder=[],aktifProds={},shift
         />
       )}
       {showTutupKasir&&!isGabungan&&(
-        <TutupShiftKasir shift={shift} txHariIni={txHariIni.filter(t=>t.shift_id===shift?.id)} onTutup={onTutupShift} onCancel={()=>setShowTutupKasir(false)}/>
+        <TutupShiftKasir shift={shift} txHariIni={txHariIni.filter(t=>t.shift_id===shift?.id)} saldoApps={saldoApps} onTutup={onTutupShift} onCancel={()=>setShowTutupKasir(false)}/>
       )}
 
       {/* Modal Tutup Shift Bank */}
@@ -1268,9 +1337,25 @@ export default function KasirLite(){
     setScene("pilih_outlet");
   },[]);
 
-  const handlePilihOutlet=useCallback((o)=>{
+  const handlePilihOutlet=useCallback(async(o)=>{
     setOutlet(o);
     if(shift||bankShift){ setScene("main"); return; }
+    // Cek dulu ke database — mungkin outlet ini masih ada shift yang aktif
+    // (misalnya kasir logout tanpa tutup shift dulu, atau ganti device).
+    // Kalau ada, LANJUTKAN shift itu — jangan buka shift baru, supaya
+    // transaksi lama tidak jadi "yatim" dan omset tidak reset ke 0.
+    try{
+      const [activeKasir, activeBank] = await Promise.all([
+        dbShift.getActiveShift(o.id, user.username).catch(()=>null),
+        dbBank.getActiveShift(o.id, user.username).catch(()=>null),
+      ]);
+      if(activeKasir||activeBank){
+        if(activeKasir) setShift(activeKasir);
+        if(activeBank) setBankShift(activeBank);
+        setScene("main");
+        return;
+      }
+    }catch(e){ console.warn('cek shift aktif gagal:',e); }
     // Hanya role bank/staff/admin yang bisa pilih mode
     const canBank = user?.role==="bank"||user?.role==="staff"||user?.role==="admin"||user?.role==="bos";
     if(canBank){
@@ -1428,7 +1513,7 @@ export default function KasirLite(){
   if(scene==="main") return(
     <KasirMain
       user={user} outlet={outlet} products={products} stocks={stocks}
-      prodOrder={prodOrder} aktifProds={aktifProds}
+      prodOrder={prodOrder} aktifProds={aktifProds} saldoApps={saldoApps}
       shift={shift} onAddTrx={()=>{}} onTutupShift={handleTutupShiftKasir}
       onLogout={()=>{ setUser(null); setShift(null); setBankShift(null); setOutlet(null); setModeGabungan(false); try{['klite_user','klite_outlet','klite_shift','klite_bankshift','klite_mode'].forEach(k=>localStorage.removeItem(k));}catch{} setScene("login"); }}
       onMenu={()=>setScene("pilih_outlet")}
