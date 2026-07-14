@@ -681,6 +681,7 @@ function KasirMain({user,outlet,products,stocks,prodOrder=[],aktifProds={},shift
   const [paying,setPaying]=useState(false);
   const [showManual,setShowManual]=useState(false);
   const [manualForm,setManualForm]=useState({name:"",modal:"0",price:"0",qty:"1"});
+  const [showTutupKasir,setShowTutupKasir]=useState(false);
   const [showTutupBank,setShowTutupBank]=useState(false);
   const [showFormBank,setShowFormBank]=useState(false);
   const [showSetorTunai,setShowSetorTunai]=useState(false);
