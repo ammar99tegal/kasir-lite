@@ -679,7 +679,7 @@ function KasirMain({user,outlet,products,stocks,prodOrder=[],aktifProds={},shift
   const [showBayar,setShowBayar]=useState(false);
   const [cashInput,setCashInput]=useState("");
   const [paying,setPaying]=useState(false);
-  const [showManual,setShowManual]=useState(false);
+  const [debugInfo,setDebugInfo]=useState("");
   const [manualForm,setManualForm]=useState({name:"",modal:"0",price:"0",qty:"1"});
   const [showTutupKasir,setShowTutupKasir]=useState(false);
   const [showTutupBank,setShowTutupBank]=useState(false);
@@ -700,30 +700,32 @@ function KasirMain({user,outlet,products,stocks,prodOrder=[],aktifProds={},shift
   useEffect(()=>{
     const load=async()=>{
       try{
-        // Ambil transaksi 2 hari terakhir — filter tanggal di client side lebih aman
         const cutoff=new Date(); cutoff.setDate(cutoff.getDate()-2);
-        // outlet.id bisa string atau number — coba keduanya
         const outletId = outlet.id;
-        const {data}=await supabase.from('transactions').select('*')
+        const now=new Date();
+        const todayISO2=now.toISOString().split('T')[0];
+        const tgl1=`${now.getDate()}/${now.getMonth()+1}/${now.getFullYear()}`;
+        const tgl2=`${String(now.getDate()).padStart(2,'0')}/${String(now.getMonth()+1).padStart(2,'0')}/${now.getFullYear()}`;
+
+        const {data,error}=await supabase.from('transactions').select('*')
           .eq('outlet_id', outletId)
           .gte('created_at', cutoff.toISOString())
           .order('created_at',{ascending:false});
+
+        const dbg=`outlet_id=${outletId}(${typeof outletId}) | DB rows=${data?.length||0} | err=${error?.message||'none'} | tgl=${tgl1} | sample_date=${data?.[0]?.date||'-'} | sample_created=${data?.[0]?.created_at?.split('T')[0]||'-'}`;
+        setDebugInfo(dbg);
+
         if(data&&data.length>0){
-          const tgl=today();
-          // today() bisa beda format per device, cek beberapa format
-          const now=new Date();
-          const tgl2=`${now.getDate()}/${now.getMonth()+1}/${now.getFullYear()}`;
-          const tgl3=`${String(now.getDate()).padStart(2,'0')}/${String(now.getMonth()+1).padStart(2,'0')}/${now.getFullYear()}`;
-          const todayISO2=now.toISOString().split('T')[0]; // yyyy-mm-dd
           const filtered=data.filter(t=>
-            t.date===tgl||t.date===tgl2||t.date===tgl3||
+            t.date===tgl1||t.date===tgl2||
             (t.created_at&&t.created_at.startsWith(todayISO2))
           ).map(t=>({...t,items:t.items||[]}));
           setTxHariIni(filtered);
+          setDebugInfo(dbg+` | filtered=${filtered.length}`);
         } else {
           setTxHariIni([]);
         }
-      }catch(e){ console.warn('load tx:',e); }
+      }catch(e){ setDebugInfo('ERROR:'+e.message); }
     };
     load();
     const ch=supabase.channel(`kasir-lite-${outlet.id}`)
@@ -975,6 +977,7 @@ function KasirMain({user,outlet,products,stocks,prodOrder=[],aktifProds={},shift
           <div style={{fontWeight:800,fontSize:13,marginBottom:8,color:C.text}}>
             Transaksi Hari Ini ({txHariIni.length} trx · {fmtRp(omsetShift)})
           </div>
+          {debugInfo&&<div style={{background:"#1e293b",borderRadius:8,padding:"8px 10px",marginBottom:10,fontSize:9,color:"#94a3b8",wordBreak:"break-all",lineHeight:1.5}}>{debugInfo}</div>}
           {txHariIni.length===0
             ?<div style={{textAlign:"center",color:C.muted,padding:32,fontSize:13}}>Belum ada transaksi hari ini</div>
             :txHariIni.map(t=>{
