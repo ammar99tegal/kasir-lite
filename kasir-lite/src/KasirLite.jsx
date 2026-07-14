@@ -1275,6 +1275,14 @@ export default function KasirLite(){
     try{
       await dbBank.openShift(s,outlet.id,user.username);
       setBankShift(s);
+
+      // Mode gabungan: otomatis buat shift kasir juga
+      if(modeGabungan||user?.role==="bank"){
+        const ks={id:uid(),nama:data.namaShift,start:now(),outletId:outlet.id,
+          saldo_data:{cashKembalian:data.cashKemb||0,saldoApps:data.saldoApps||{},totalSaldoApps:data.totalSaldo||0}};
+        try{ await dbShift.openShift(ks,outlet.id,user.username); setShift(ks); }
+        catch(e){ console.warn('auto kasir shift:',e); }
+      }
       // Load bank trx hari ini
       const {data:rows}=await supabase.from('bank_transactions').select('*').eq('outlet_id',outlet.id).gte('created_at',todayISO()).order('created_at',{ascending:false});
       setBankTrxList((rows||[]).map(t=>({id:t.id,waktu:t.waktu,tgl:t.tgl,shiftId:t.shift_id,nama:t.nama,jenis:t.jenis,feeType:t.fee_type,fee:t.fee,nominal:t.nominal,netNominal:t.net_nominal,outletId:t.outlet_id})));
