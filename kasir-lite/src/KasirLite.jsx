@@ -652,10 +652,18 @@ function FormTrxBank({onSave,onCancel,editData}){
 
 // ─── STOK FISIK TAB ───────────────────────────────────────────────────────────
 function StokFisikTab({products,stocks,outlet,user,notify}){
-  const [stokFisik,setStokFisik]=useState({});
+  const draftKey = `klite_stokfisik_${outlet?.id||"x"}`;
+  const [stokFisik,setStokFisik]=useState(()=>{
+    try{ const s=localStorage.getItem(draftKey); return s?JSON.parse(s):{}; }catch{ return {}; }
+  });
   const [search,setSearch]=useState("");
   const [saving,setSaving]=useState(false);
   const [saved,setSaved]=useState(false);
+
+  // Autosave setiap kali input fisik berubah — bertahan walau pindah tab/reload
+  useEffect(()=>{
+    try{ localStorage.setItem(draftKey, JSON.stringify(stokFisik)); }catch{}
+  },[stokFisik,draftKey]);
 
   const filtered=useMemo(()=>
     products.filter(p=>!search.trim()||p.name?.toLowerCase().includes(search.toLowerCase()))
@@ -682,6 +690,9 @@ function StokFisikTab({products,stocks,outlet,user,notify}){
       }));
       await supabase.from('stok_opname').insert(rows);
       setSaved(true);
+      // Sudah terkirim ke admin — bersihkan draft biar tidak ke-input dobel di sesi berikutnya
+      try{ localStorage.removeItem(draftKey); }catch{}
+      setStokFisik({});
       notify(`✅ ${rows.length} stok fisik tersimpan ke laporan admin`,"ok");
       setTimeout(()=>setSaved(false),3000);
     }catch(e){ notify("Gagal simpan: "+e.message,"err"); }
@@ -692,6 +703,7 @@ function StokFisikTab({products,stocks,outlet,user,notify}){
     <div style={{padding:14}}>
       <div style={{background:C.primaryLight,borderRadius:10,padding:"10px 14px",marginBottom:12,fontSize:12,color:C.primary,fontWeight:700}}>
         📦 Input Stok Fisik — hasil dikirim ke laporan admin, tidak mengubah stok sistem
+        <div style={{fontSize:10,fontWeight:600,color:C.muted,marginTop:3}}>💾 Draft otomatis tersimpan — aman walau pindah tab atau tutup aplikasi</div>
       </div>
       <input style={{...inp,marginBottom:10}} value={search} onChange={e=>setSearch(e.target.value)} placeholder="🔍 Cari produk..."/>
       {hasSelisih>0&&(
