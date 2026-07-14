@@ -815,6 +815,12 @@ function KasirMain({user,outlet,products,stocks,prodOrder=[],aktifProds={},shift
           <div style={{fontSize:"0.65rem",color:"rgba(255,255,255,.7)"}}>Omset Shift</div>
           <div style={{fontWeight:900,fontSize:"0.85rem",color:"#fff"}}>{fmtRp(omsetShift)}</div>
         </div>
+        {isGabungan&&(
+          <div style={{background:"rgba(255,215,0,.2)",borderRadius:10,padding:"4px 10px",textAlign:"center",border:"1px solid rgba(255,215,0,.4)"}}>
+            <div style={{fontSize:"0.65rem",color:"rgba(255,255,255,.7)"}}>💰 Laci</div>
+            <div style={{fontWeight:900,fontSize:"0.85rem",color:"#fbbf24"}}>{fmtRp(omsetShift+((bankShift?.cashKemb||0)+bankMasuk-bankKeluar))}</div>
+          </div>
+        )}
         {/* Tutup shift */}
         <button onClick={()=>tab==="bank"?setShowTutupBank(true):setShowTutupKasir(true)}
           style={{background:"rgba(220,38,38,.8)",border:"none",borderRadius:10,padding:"7px 12px",color:"#fff",fontWeight:800,fontSize:11,cursor:"pointer"}}>
