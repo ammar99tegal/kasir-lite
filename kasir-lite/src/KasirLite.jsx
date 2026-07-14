@@ -701,29 +701,39 @@ function KasirMain({user,outlet,products,stocks,prodOrder=[],aktifProds={},shift
   useEffect(()=>{
     const load=async()=>{
       try{
-        const cutoff=new Date(); cutoff.setDate(cutoff.getDate()-2);
-        const outletId = outlet.id;
-        const now=new Date();
-        const todayISO2=now.toISOString().split('T')[0];
-        const tgl1=`${now.getDate()}/${now.getMonth()+1}/${now.getFullYear()}`;
-        const tgl2=`${String(now.getDate()).padStart(2,'0')}/${String(now.getMonth()+1).padStart(2,'0')}/${now.getFullYear()}`;
-
+        // Ambil 3 hari terakhir — filter di client lebih aman
+        const cutoff=new Date(); cutoff.setDate(cutoff.getDate()-3);
         const {data,error}=await supabase.from('transactions').select('*')
-          .eq('outlet_id', outletId)
+          .eq('outlet_id', outlet.id)
           .gte('created_at', cutoff.toISOString())
           .order('created_at',{ascending:false});
 
-        const dbg=`outlet_id=${outletId}(${typeof outletId}) | DB rows=${data?.length||0} | err=${error?.message||'none'} | tgl=${tgl1} | sample_date=${data?.[0]?.date||'-'} | sample_created=${data?.[0]?.created_at?.split('T')[0]||'-'}`;
-        setDebugInfo(dbg);
-
         if(data&&data.length>0){
-          const filtered=data.filter(t=>
-            t.date===tgl1||t.date===tgl2||
-            (t.created_at&&t.created_at.startsWith(todayISO2))
-          ).map(t=>({...t,items:t.items||[]}));
-          setTxHariIni(filtered);
+          const now=new Date();
+          // Hari ini dalam berbagai format yang mungkin dipakai
+          const d=now.getDate(), m=now.getMonth()+1, y=now.getFullYear();
+          const todayFormats=[
+            `${d}/${m}/${y}`,
+            `${String(d).padStart(2,'0')}/${String(m).padStart(2,'0')}/${y}`,
+            now.toISOString().split('T')[0], // yyyy-mm-dd UTC
+            // WIB = UTC+7, mungkin beda hari
+            new Date(now.getTime()+7*3600000).toISOString().split('T')[0],
+          ];
+          const dbg=`outlet_id=${outlet.id} | rows=${data.length} | err=${error?.message||'none'} | tgl=${d}/${m}/${y} | sample_date=${data[0]?.date} | formats=${todayFormats.join(',')}`;
+          setDebugInfo(dbg);
+          // Filter: cocokkan date field ATAU created_at hari ini
+          const filtered=data.filter(t=>{
+            if(todayFormats.includes(t.date)) return true;
+            if(t.created_at){
+              const txDate=t.created_at.split('T')[0];
+              if(todayFormats.includes(txDate)) return true;
+            }
+            return false;
+          }).map(t=>({...t,items:t.items||[]}));
           setDebugInfo(dbg+` | filtered=${filtered.length}`);
+          setTxHariIni(filtered);
         } else {
+          setDebugInfo(`outlet_id=${outlet.id} | rows=0 | err=${error?.message||'none'}`);
           setTxHariIni([]);
         }
       }catch(e){ setDebugInfo('ERROR:'+e.message); }
