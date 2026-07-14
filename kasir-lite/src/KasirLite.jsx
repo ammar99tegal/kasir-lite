@@ -962,40 +962,40 @@ function KasirMain({user,outlet,products,stocks,prodOrder=[],aktifProds={},shift
       {tab==="riwayat"&&(
         <div style={{padding:14}}>
           <div style={{fontWeight:800,fontSize:13,marginBottom:8,color:C.text}}>
-            Transaksi Hari Ini — Shift {shift?.nama||"-"} ({txHariIni.filter(t=>!shift||t.shift_id===shift?.id).length} trx · {fmtRp(txHariIni.filter(t=>!shift||t.shift_id===shift?.id).reduce((s,t)=>{const rv=(t.items||[]).filter(i=>i.refunded).reduce((rs,i)=>rs+i.price*i.qty,0);return s+t.total-rv;},0))})
+            Transaksi Hari Ini ({txHariIni.length} trx · {fmtRp(omsetShift)})
           </div>
-          {txHariIni.filter(t=>!shift||t.shift_id===shift?.id).length===0
+          {txHariIni.length===0
             ?<div style={{textAlign:"center",color:C.muted,padding:32,fontSize:13}}>Belum ada transaksi hari ini</div>
-            :txHariIni.filter(t=>!shift||t.shift_id===shift?.id).map(t=>{
-              const isRefunded = (t.items||[]).every(i=>i.refunded);
+            :txHariIni.map(t=>{
+              const allRefunded = (t.items||[]).every(i=>i.refunded);
               return(
-                <div key={t.id} style={{background:"#fff",borderRadius:10,padding:"10px 14px",marginBottom:6,boxShadow:"0 1px 4px rgba(0,0,0,.06)",opacity:isRefunded?.5:1}}>
+                <div key={t.id} style={{background:"#fff",borderRadius:10,padding:"10px 14px",marginBottom:6,boxShadow:"0 1px 4px rgba(0,0,0,.06)",opacity:allRefunded?.5:1}}>
                   <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:4}}>
-                    <span style={{fontWeight:700,fontSize:11,color:C.muted}}>#{t.id}</span>
-                    <div style={{display:"flex",alignItems:"center",gap:8}}>
-                      {isRefunded&&<span style={{fontSize:10,fontWeight:700,color:C.danger,background:"#fff0f0",padding:"2px 8px",borderRadius:10}}>REFUND</span>}
-                      <span style={{fontWeight:900,fontSize:14,color:isRefunded?C.muted:C.primary}}>{fmtRp(t.total)}</span>
-                    </div>
+                    <span style={{fontWeight:700,fontSize:11,color:C.muted}}>#{t.id} · {t.date} {t.time}</span>
+                    <span style={{fontWeight:900,fontSize:14,color:allRefunded?C.muted:C.primary}}>{fmtRp(t.total)}</span>
                   </div>
-                  <div style={{fontSize:11,color:C.muted,marginBottom:6}}>{t.date} {t.time}</div>
-                  <div style={{display:"flex",flexWrap:"wrap",gap:4,marginBottom:isRefunded?0:6}}>
-                    {(t.items||[]).map((i,idx)=>(
-                      <span key={idx} style={{background:i.refunded?"#f1f5f9":C.primaryLight,color:i.refunded?C.muted:C.primary,borderRadius:6,padding:"2px 7px",fontSize:10,fontWeight:700,textDecoration:i.refunded?"line-through":"none"}}>{i.name} ×{i.qty}</span>
+                  {/* Item list dengan refund per item */}
+                  <div style={{display:"flex",flexWrap:"wrap",gap:4,marginBottom:6}}>
+                    {(t.items||[]).map((item,idx)=>(
+                      <div key={idx} style={{display:"flex",alignItems:"center",gap:4,background:item.refunded?"#f1f5f9":C.primaryLight,borderRadius:8,padding:"3px 8px"}}>
+                        <span style={{fontSize:10,fontWeight:700,color:item.refunded?C.muted:C.primary,textDecoration:item.refunded?"line-through":"none"}}>
+                          {item.name} ×{item.qty}
+                        </span>
+                        {!item.refunded&&(
+                          <button onClick={async()=>{
+                            if(!window.confirm(`Refund "${item.name}"?`)) return;
+                            try{
+                              const updatedItems=(t.items||[]).map((i,j)=>j===idx?{...i,refunded:true}:i);
+                              await supabase.from('transactions').update({items:updatedItems}).eq('id',t.id);
+                              setTxHariIni(prev=>prev.map(x=>x.id===t.id?{...x,items:updatedItems}:x));
+                              notify("✓ Refund item berhasil","ok");
+                            }catch(e){ notify("Gagal refund: "+e.message,"err"); }
+                          }} style={{background:"none",border:"none",cursor:"pointer",fontSize:11,color:C.danger,fontWeight:700,padding:0,lineHeight:1}}>↩</button>
+                        )}
+                      </div>
                     ))}
                   </div>
-                  {!isRefunded&&(
-                    <button onClick={async()=>{
-                      if(!window.confirm("Refund semua item transaksi ini?")) return;
-                      try{
-                        const updated={...t,items:(t.items||[]).map(i=>({...i,refunded:true}))};
-                        await supabase.from('transactions').update({items:updated.items}).eq('id',t.id);
-                        setTxHariIni(prev=>prev.map(x=>x.id===t.id?updated:x));
-                        notify("✓ Refund berhasil","ok");
-                      }catch(e){ notify("Gagal refund: "+e.message,"err"); }
-                    }} style={{background:"#fff0f0",border:`1px solid #fca5a5`,borderRadius:8,padding:"4px 10px",color:C.danger,fontWeight:700,fontSize:11,cursor:"pointer"}}>
-                      🔄 Refund
-                    </button>
-                  )}
+                  {allRefunded&&<div style={{fontSize:10,fontWeight:700,color:C.danger}}>🔄 SEMUA ITEM DIREFUND</div>}
                 </div>
               );
             })
