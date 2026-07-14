@@ -679,7 +679,8 @@ function KasirMain({user,outlet,products,stocks,prodOrder=[],aktifProds={},shift
   const [showBayar,setShowBayar]=useState(false);
   const [cashInput,setCashInput]=useState("");
   const [paying,setPaying]=useState(false);
-  const [showTutupKasir,setShowTutupKasir]=useState(false);
+  const [showManual,setShowManual]=useState(false);
+  const [manualForm,setManualForm]=useState({name:"",modal:"0",price:"0",qty:"1"});
   const [showTutupBank,setShowTutupBank]=useState(false);
   const [showFormBank,setShowFormBank]=useState(false);
   const [showSetorTunai,setShowSetorTunai]=useState(false);
@@ -837,7 +838,13 @@ function KasirMain({user,outlet,products,stocks,prodOrder=[],aktifProds={},shift
         <div style={{display:"flex",height:"calc(100vh - 100px)"}}>
           {/* Produk */}
           <div style={{flex:1,overflowY:"auto",padding:10}}>
-            <input style={{...inp,marginBottom:8}} value={search} onChange={e=>setSearch(e.target.value)} placeholder="🔍 Cari nama / kode..."/>
+            <div style={{display:"flex",gap:8,marginBottom:8}}>
+              <input style={{...inp,marginBottom:0,flex:1}} value={search} onChange={e=>setSearch(e.target.value)} placeholder="🔍 Cari nama / kode..."/>
+              <button onClick={()=>{ setManualForm({name:"",modal:"0",price:"0",qty:"1"}); setShowManual(true); }}
+                style={{background:C.primary,border:"none",borderRadius:10,padding:"0 14px",color:"#fff",fontWeight:800,fontSize:13,cursor:"pointer",whiteSpace:"nowrap",flexShrink:0}}>
+                + Manual
+              </button>
+            </div>
             <div style={{display:"flex",gap:6,overflowX:"auto",paddingBottom:6,marginBottom:6}}>
               {cats.map(c=>(
                 <button key={c} onClick={()=>setCat(c)} style={{padding:"5px 12px",borderRadius:20,border:`2px solid ${cat===c?C.primary:C.border}`,background:cat===c?C.primary:"#fff",color:cat===c?"#fff":C.muted,fontWeight:700,fontSize:11,cursor:"pointer",whiteSpace:"nowrap",flexShrink:0}}>
@@ -1027,7 +1034,57 @@ function KasirMain({user,outlet,products,stocks,prodOrder=[],aktifProds={},shift
         />
       )}
 
-      {/* Modal Tutup Shift — Gabungan atau Kasir saja */}
+      {/* Modal Input Manual */}
+      {showManual&&(
+        <Modal title="➕ Input Manual" onClose={()=>setShowManual(false)}>
+          {/* Pilihan Cepat */}
+          <div style={{marginBottom:10}}>
+            <label style={{...lbl,fontSize:11}}>Pilihan Cepat</label>
+            <div style={{display:"flex",flexWrap:"wrap",gap:6}}>
+              {["SIUL ISAT","SIUL TRI","SIUL XL","SIUL AXIS","SIUL TSEL","SIUL SMART"].map(prefix=>(
+                <button key={prefix} onClick={()=>{
+                  const cur=manualForm.name||"";
+                  const existing=["SIUL ISAT","SIUL TRI","SIUL XL","SIUL AXIS","SIUL TSEL","SIUL SMART"].find(p=>cur.startsWith(p));
+                  const suffix=existing?cur.slice(existing.length):cur;
+                  setManualForm(p=>({...p,name:prefix+suffix}));
+                }}
+                  style={{padding:"4px 10px",borderRadius:8,border:"2px solid",
+                    borderColor:manualForm.name?.startsWith(prefix)?C.primary:"#b2ede6",
+                    background:manualForm.name?.startsWith(prefix)?C.primary:C.primaryLight,
+                    color:manualForm.name?.startsWith(prefix)?"#fff":C.primary,
+                    fontWeight:700,fontSize:11,cursor:"pointer",fontFamily:"inherit"}}>
+                  {prefix}
+                </button>
+              ))}
+            </div>
+          </div>
+          <label style={lbl}>Nama *</label>
+          <input style={inp} value={manualForm.name} onChange={e=>setManualForm(p=>({...p,name:e.target.value}))} placeholder="Nama item..."/>
+          <label style={lbl}>Harga Modal *</label>
+          <input style={inp} type="number" value={manualForm.modal} onChange={e=>setManualForm(p=>({...p,modal:e.target.value}))} placeholder="0"/>
+          <label style={lbl}>Harga Jual *</label>
+          <input style={inp} type="number" value={manualForm.price} onChange={e=>setManualForm(p=>({...p,price:e.target.value}))} placeholder="0"/>
+          <label style={lbl}>Qty</label>
+          <input style={inp} type="number" value={manualForm.qty} onChange={e=>setManualForm(p=>({...p,qty:e.target.value}))} placeholder="1"/>
+          <div style={{background:"#fffbe6",border:"2px solid #ffe082",borderRadius:8,padding:"6px 12px",fontSize:11,color:"#7d6608",marginBottom:12}}>
+            ⚠️ Item manual tidak terhubung ke stok
+          </div>
+          <div style={{display:"flex",gap:8}}>
+            <button onClick={()=>setShowManual(false)} style={btn("#f1f5f9",C.text,{flex:1})}>Batal</button>
+            <button onClick={()=>{
+              if(!manualForm.name.trim()||!+manualForm.price) return alert("Isi nama dan harga jual!");
+              const item={id:"manual-"+uid(),name:manualForm.name.trim(),price:+manualForm.price,modal:+manualForm.modal||0,qty:+manualForm.qty||1};
+              setCart(prev=>{
+                const ex=prev.find(i=>i.name===item.name&&i.price===item.price);
+                if(ex) return prev.map(i=>i.name===item.name&&i.price===item.price?{...i,qty:i.qty+item.qty}:i);
+                return [...prev,item];
+              });
+              setShowManual(false);
+              notify("✓ Item manual ditambahkan","ok");
+            }} style={btn(C.primary,"#fff",{flex:2})}>Tambah</button>
+          </div>
+        </Modal>
+      )}
       {showTutupKasir&&isGabungan&&(
         <TutupShiftGabungan
           shift={shift} bankShift={bankShift}
