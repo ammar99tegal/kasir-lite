@@ -697,45 +697,35 @@ function KasirMain({user,outlet,products,stocks,prodOrder=[],aktifProds={},shift
     timerRef.current=setTimeout(()=>setToast({msg:"",type:""}),2500);
   };
 
-  // Load transaksi hari ini — filter by outlet + tanggal
+  // Load transaksi terbaru — TIDAK lagi disaring ketat berdasarkan tanggal device.
+  // Alasan: kalau jam/tanggal tablet salah setting (mis. mundur/maju 1 hari),
+  // pencocokan string tanggal bikin transaksi yang SUDAH tersimpan aman di Supabase
+  // jadi tidak tampil ("hilang" di layar padahal datanya ada). cutoff 3 hari dari
+  // created_at (jam server) tetap aman dipakai karena hanya untuk membatasi jumlah
+  // data yang diambil, bukan untuk menentukan "hari ini" secara ketat.
   useEffect(()=>{
     const load=async()=>{
       try{
-        // Ambil 3 hari terakhir — filter di client lebih aman
         const cutoff=new Date(); cutoff.setDate(cutoff.getDate()-3);
         const {data,error}=await supabase.from('transactions').select('*')
           .eq('outlet_id', outlet.id)
           .gte('created_at', cutoff.toISOString())
-          .order('created_at',{ascending:false});
+          .order('created_at',{ascending:false})
+          .limit(200);
 
-        if(data&&data.length>0){
-          const now=new Date();
-          // Hari ini dalam berbagai format yang mungkin dipakai
-          const d=now.getDate(), m=now.getMonth()+1, y=now.getFullYear();
-          const todayFormats=[
-            `${d}/${m}/${y}`,
-            `${String(d).padStart(2,'0')}/${String(m).padStart(2,'0')}/${y}`,
-            now.toISOString().split('T')[0], // yyyy-mm-dd UTC
-            // WIB = UTC+7, mungkin beda hari
-            new Date(now.getTime()+7*3600000).toISOString().split('T')[0],
-          ];
-          const dbg=`outlet_id=${outlet.id} | rows=${data.length} | err=${error?.message||'none'} | tgl=${d}/${m}/${y} | sample_date=${data[0]?.date} | formats=${todayFormats.join(',')}`;
-          setDebugInfo(dbg);
-          // Filter: cocokkan date field ATAU created_at hari ini
-          const filtered=data.filter(t=>{
-            if(todayFormats.includes(t.date)) return true;
-            if(t.created_at){
-              const txDate=t.created_at.split('T')[0];
-              if(todayFormats.includes(txDate)) return true;
-            }
-            return false;
-          }).map(t=>({...t,items:t.items||[]}));
-          setDebugInfo(dbg+` | filtered=${filtered.length}`);
-          setTxHariIni(filtered);
-        } else {
-          setDebugInfo(`outlet_id=${outlet.id} | rows=0 | err=${error?.message||'none'}`);
+        if(error){
+          setDebugInfo(`outlet_id=${outlet.id} | err=${error.message}`);
           setTxHariIni([]);
+          return;
         }
+        const rows=(data||[]).map(t=>({...t,items:t.items||[]}));
+        // Transaksi shift yang sedang aktif selalu diutamakan tampil di atas —
+        // dicocokkan pakai shift_id (ID unik), bukan tanggal, jadi tidak
+        // terpengaruh jam device sama sekali.
+        const shiftRows = shift ? rows.filter(t=>t.shift_id===shift.id) : [];
+        const otherRows = shift ? rows.filter(t=>t.shift_id!==shift.id) : rows;
+        setTxHariIni([...shiftRows,...otherRows]);
+        setDebugInfo(`outlet_id=${outlet.id} | rows=${rows.length} | shift_rows=${shiftRows.length}`);
       }catch(e){ setDebugInfo('ERROR:'+e.message); }
     };
     load();
@@ -744,7 +734,7 @@ function KasirMain({user,outlet,products,stocks,prodOrder=[],aktifProds={},shift
         if(String(p.new?.outlet_id)===String(outlet.id)) load();
       }).subscribe();
     return()=>supabase.removeChannel(ch);
-  },[outlet.id]);
+  },[outlet.id,shift?.id]);
 
   // Produk aktif untuk outlet ini, diurutkan sesuai prodOrder admin
   const outletAktif = aktifProds[outlet?.id];
@@ -986,11 +976,11 @@ function KasirMain({user,outlet,products,stocks,prodOrder=[],aktifProds={},shift
       {tab==="riwayat"&&(
         <div style={{padding:14}}>
           <div style={{fontWeight:800,fontSize:13,marginBottom:8,color:C.text}}>
-            Transaksi Hari Ini ({txHariIni.length} trx · {fmtRp(omsetShift)})
+            Transaksi Shift Ini & Terbaru ({txHariIni.length} trx · Shift: {fmtRp(omsetShift)})
           </div>
           {debugInfo&&<div style={{background:"#1e293b",borderRadius:8,padding:"8px 10px",marginBottom:10,fontSize:9,color:"#94a3b8",wordBreak:"break-all",lineHeight:1.5}}>{debugInfo}</div>}
           {txHariIni.length===0
-            ?<div style={{textAlign:"center",color:C.muted,padding:32,fontSize:13}}>Belum ada transaksi hari ini</div>
+            ?<div style={{textAlign:"center",color:C.muted,padding:32,fontSize:13}}>Belum ada transaksi</div>
             :txHariIni.map(t=>{
               const allRefunded = (t.items||[]).every(i=>i.refunded);
               return(
