@@ -1162,7 +1162,12 @@ export default function KasirLite(){
     try{
       const u=localStorage.getItem('klite_user');
       const o=localStorage.getItem('klite_outlet');
-      if(u&&o) return "main";
+      const sh=localStorage.getItem('klite_shift');
+      const bsh=localStorage.getItem('klite_bankshift');
+      // Hanya ke main kalau ada shift aktif — jangan buka shift lagi
+      if(u&&o&&(sh||bsh)) return "main";
+      // Ada user+outlet tapi tidak ada shift — ke pilih mode
+      if(u&&o) return "pilih_outlet";
       if(u) return "pilih_outlet";
     }catch{}
     return "login";
