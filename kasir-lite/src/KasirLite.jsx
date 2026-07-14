@@ -700,24 +700,35 @@ function KasirMain({user,outlet,products,stocks,prodOrder=[],aktifProds={},shift
   useEffect(()=>{
     const load=async()=>{
       try{
-        // Ambil semua transaksi outlet hari ini (30 hari terakhir untuk keamanan)
-        const cutoff=new Date(); cutoff.setDate(cutoff.getDate()-1);
+        // Ambil transaksi 2 hari terakhir — filter tanggal di client side lebih aman
+        const cutoff=new Date(); cutoff.setDate(cutoff.getDate()-2);
+        // outlet.id bisa string atau number — coba keduanya
+        const outletId = outlet.id;
         const {data}=await supabase.from('transactions').select('*')
-          .eq('outlet_id',outlet.id)
-          .gte('created_at',cutoff.toISOString())
+          .eq('outlet_id', outletId)
+          .gte('created_at', cutoff.toISOString())
           .order('created_at',{ascending:false});
-        if(data){
-          const tgl=today(); // format dd/m/yyyy
-          // Filter yang tanggalnya hari ini (format date di transaksi)
-          const filtered=data.filter(t=>t.date===tgl).map(t=>({...t,items:t.items||[]}));
+        if(data&&data.length>0){
+          const tgl=today();
+          // today() bisa beda format per device, cek beberapa format
+          const now=new Date();
+          const tgl2=`${now.getDate()}/${now.getMonth()+1}/${now.getFullYear()}`;
+          const tgl3=`${String(now.getDate()).padStart(2,'0')}/${String(now.getMonth()+1).padStart(2,'0')}/${now.getFullYear()}`;
+          const todayISO2=now.toISOString().split('T')[0]; // yyyy-mm-dd
+          const filtered=data.filter(t=>
+            t.date===tgl||t.date===tgl2||t.date===tgl3||
+            (t.created_at&&t.created_at.startsWith(todayISO2))
+          ).map(t=>({...t,items:t.items||[]}));
           setTxHariIni(filtered);
+        } else {
+          setTxHariIni([]);
         }
       }catch(e){ console.warn('load tx:',e); }
     };
     load();
     const ch=supabase.channel(`kasir-lite-${outlet.id}`)
       .on('postgres_changes',{event:'INSERT',schema:'public',table:'transactions'},(p)=>{
-        if(p.new?.outlet_id===outlet.id) load();
+        if(String(p.new?.outlet_id)===String(outlet.id)) load();
       }).subscribe();
     return()=>supabase.removeChannel(ch);
   },[outlet.id]);
