@@ -688,7 +688,8 @@ function StokFisikTab({products,stocks,outlet,user,notify}){
         tgl:new Date().toISOString().split('T')[0],
         created_at:new Date().toISOString(),
       }));
-      await supabase.from('stok_opname').insert(rows);
+      const {error} = await supabase.from('stok_opname').insert(rows);
+      if(error) throw error;
       setSaved(true);
       // Sudah terkirim ke admin — bersihkan draft biar tidak ke-input dobel di sesi berikutnya
       try{ localStorage.removeItem(draftKey); }catch{}
