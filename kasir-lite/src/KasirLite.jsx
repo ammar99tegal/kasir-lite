@@ -747,7 +747,7 @@ function StokFisikTab({products,stocks,outlet,user,notify}){
 }
 
 // ─── KASIR MAIN ───────────────────────────────────────────────────────────────
-function KasirMain({user,outlet,products,stocks,prodOrder=[],aktifProds={},saldoApps=[],shift,onAddTrx,onTutupShift,onLogout,onMenu,bankShift,bankTrxList,onAddBankTrx,onTutupBankShift,isGabungan}){
+function KasirMain({user,outlet,products,stocks,setStocks,prodOrder=[],aktifProds={},saldoApps=[],shift,onAddTrx,onBukaShift,onTutupShift,onLogout,onMenu,bankShift,bankTrxList,onAddBankTrx,onBukaShiftBank,onTutupBankShift,isGabungan}){
   const [tab,setTab]=useState("kasir"); // kasir | bank | riwayat
   const [search,setSearch]=useState("");
   const [cat,setCat]=useState("Semua");
@@ -865,6 +865,22 @@ function KasirMain({user,outlet,products,stocks,prodOrder=[],aktifProds={},saldo
       setTxHariIni(prev=>[trx,...prev]);
       setCart([]); setCashInput(""); setShowBayar(false);
       notify("✓ Transaksi berhasil!","ok");
+
+      // Kurangi stok sesuai item yang terjual — sebelumnya stok TIDAK PERNAH
+      // dikurangi sama sekali setelah transaksi. Update state lokal dulu
+      // (feedback instan), lalu simpan ke database per produk.
+      const newStockOutlet = {...(stocks[outlet.id]||{})};
+      cart.forEach(i=>{
+        const cur = newStockOutlet[i.id] ?? 0;
+        newStockOutlet[i.id] = Math.max(0, cur - i.qty);
+      });
+      setStocks(prev=>({...prev,[outlet.id]:newStockOutlet}));
+      try{
+        await Promise.all(cart.map(i=>db.upsertStock(outlet.id, i.id, newStockOutlet[i.id])));
+      }catch(stockErr){
+        console.error('Gagal update stok:', stockErr);
+        notify("⚠️ Transaksi tersimpan, tapi stok gagal diupdate: "+stockErr.message,"err");
+      }
     }catch(e){ console.error(e); notify("Gagal simpan transaksi!","err"); }
     setPaying(false);
   };
@@ -937,7 +953,10 @@ function KasirMain({user,outlet,products,stocks,prodOrder=[],aktifProds={},saldo
       </div>
 
       {/* ── TAB KASIR ── */}
-      {tab==="kasir"&&(
+      {tab==="kasir"&&!shift&&(
+        <BukaShiftKasir user={user} outlet={outlet} saldoApps={saldoApps} onBuka={onBukaShift} onCancel={onMenu}/>
+      )}
+      {tab==="kasir"&&shift&&(
         <div style={{display:"flex",height:"calc(100vh - 100px)"}}>
           {/* Produk */}
           <div style={{flex:1,overflowY:"auto",padding:10}}>
@@ -1010,7 +1029,10 @@ function KasirMain({user,outlet,products,stocks,prodOrder=[],aktifProds={},saldo
       )}
 
       {/* ── TAB BANK ── */}
-      {tab==="bank"&&isGabungan&&(
+      {tab==="bank"&&isGabungan&&!bankShift&&(
+        <BukaShiftBank user={user} outlet={outlet} saldoApps={saldoApps} onBuka={onBukaShiftBank} onCancel={onMenu}/>
+      )}
+      {tab==="bank"&&isGabungan&&bankShift&&(
         <div style={{padding:14}}>
           <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:10,marginBottom:14}}>
             {[{l:"Uang Sistem",v:fmtRp((bankShift?.cashKemb||0)+bankMasuk-bankKeluar),c:C.bank,bg:C.bankLight},
@@ -1085,6 +1107,11 @@ function KasirMain({user,outlet,products,stocks,prodOrder=[],aktifProds={},saldo
                               const updatedItems=(t.items||[]).map((i,j)=>j===idx?{...i,refunded:true}:i);
                               await supabase.from('transactions').update({items:updatedItems}).eq('id',t.id);
                               setTxHariIni(prev=>prev.map(x=>x.id===t.id?{...x,items:updatedItems}:x));
+                              // Kembalikan stok produk yang direfund
+                              const curQty=(stocks[outlet.id]||{})[item.id]??0;
+                              const newQty=curQty+item.qty;
+                              setStocks(prev=>({...prev,[outlet.id]:{...(prev[outlet.id]||{}),[item.id]:newQty}}));
+                              db.upsertStock(outlet.id,item.id,newQty).catch(err=>notify("⚠️ Refund tersimpan, tapi stok gagal diupdate: "+err.message,"err"));
                               notify("✓ Refund item berhasil","ok");
                             }catch(e){ notify("Gagal refund: "+e.message,"err"); }
                           }} style={{background:"none",border:"none",cursor:"pointer",fontSize:11,color:C.danger,fontWeight:700,padding:0,lineHeight:1}}>↩</button>
@@ -1525,13 +1552,13 @@ export default function KasirLite(){
 
   if(scene==="main") return(
     <KasirMain
-      user={user} outlet={outlet} products={products} stocks={stocks}
+      user={user} outlet={outlet} products={products} stocks={stocks} setStocks={setStocks}
       prodOrder={prodOrder} aktifProds={aktifProds} saldoApps={saldoApps}
-      shift={shift} onAddTrx={()=>{}} onTutupShift={handleTutupShiftKasir}
+      shift={shift} onAddTrx={()=>{}} onBukaShift={handleBukaShiftKasir} onTutupShift={handleTutupShiftKasir}
       onLogout={()=>{ setUser(null); setShift(null); setBankShift(null); setOutlet(null); setModeGabungan(false); try{['klite_user','klite_outlet','klite_shift','klite_bankshift','klite_mode'].forEach(k=>localStorage.removeItem(k));}catch{} setScene("login"); }}
       onMenu={()=>setScene("pilih_outlet")}
       bankShift={bankShift} bankTrxList={bankTrxList}
-      onAddBankTrx={handleAddBankTrx} onTutupBankShift={handleTutupShiftBank}
+      onAddBankTrx={handleAddBankTrx} onBukaShiftBank={handleBukaShiftBank} onTutupBankShift={handleTutupShiftBank}
       isGabungan={isGabungan}
     />
   );
