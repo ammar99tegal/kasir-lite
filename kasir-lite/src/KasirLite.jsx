@@ -871,12 +871,14 @@ function KasirMain({user,outlet,products,stocks,setStocks,prodOrder=[],aktifProd
       // (feedback instan), lalu simpan ke database per produk.
       const newStockOutlet = {...(stocks[outlet.id]||{})};
       cart.forEach(i=>{
+        if(String(i.id).startsWith("manual-")) return; // item manual bukan produk asli, tidak ada di tabel stok
         const cur = newStockOutlet[i.id] ?? 0;
         newStockOutlet[i.id] = Math.max(0, cur - i.qty);
       });
       setStocks(prev=>({...prev,[outlet.id]:newStockOutlet}));
       try{
-        await Promise.all(cart.map(i=>db.upsertStock(outlet.id, i.id, newStockOutlet[i.id])));
+        const realItems=cart.filter(i=>!String(i.id).startsWith("manual-"));
+        await Promise.all(realItems.map(i=>db.upsertStock(outlet.id, i.id, newStockOutlet[i.id])));
       }catch(stockErr){
         console.error('Gagal update stok:', stockErr);
         notify("⚠️ Transaksi tersimpan, tapi stok gagal diupdate: "+stockErr.message,"err");
@@ -1107,11 +1109,13 @@ function KasirMain({user,outlet,products,stocks,setStocks,prodOrder=[],aktifProd
                               const updatedItems=(t.items||[]).map((i,j)=>j===idx?{...i,refunded:true}:i);
                               await supabase.from('transactions').update({items:updatedItems}).eq('id',t.id);
                               setTxHariIni(prev=>prev.map(x=>x.id===t.id?{...x,items:updatedItems}:x));
-                              // Kembalikan stok produk yang direfund
-                              const curQty=(stocks[outlet.id]||{})[item.id]??0;
-                              const newQty=curQty+item.qty;
-                              setStocks(prev=>({...prev,[outlet.id]:{...(prev[outlet.id]||{}),[item.id]:newQty}}));
-                              db.upsertStock(outlet.id,item.id,newQty).catch(err=>notify("⚠️ Refund tersimpan, tapi stok gagal diupdate: "+err.message,"err"));
+                              // Kembalikan stok produk yang direfund (item manual dilewati)
+                              if(!String(item.id).startsWith("manual-")){
+                                const curQty=(stocks[outlet.id]||{})[item.id]??0;
+                                const newQty=curQty+item.qty;
+                                setStocks(prev=>({...prev,[outlet.id]:{...(prev[outlet.id]||{}),[item.id]:newQty}}));
+                                db.upsertStock(outlet.id,item.id,newQty).catch(err=>notify("⚠️ Refund tersimpan, tapi stok gagal diupdate: "+err.message,"err"));
+                              }
                               notify("✓ Refund item berhasil","ok");
                             }catch(e){ notify("Gagal refund: "+e.message,"err"); }
                           }} style={{background:"none",border:"none",cursor:"pointer",fontSize:11,color:C.danger,fontWeight:700,padding:0,lineHeight:1}}>↩</button>
