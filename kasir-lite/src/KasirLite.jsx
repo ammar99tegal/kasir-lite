@@ -905,7 +905,13 @@ function KasirMain({user,outlet,products,stocks,setStocks,prodOrder=[],aktifProd
     return s+t.total-rv;
   },0),[txHariIni]);
 
-  const bankTrxHari = useMemo(()=>bankTrxList.filter(t=>t.tgl===today()),[bankTrxList]);
+  // Sebelumnya difilter pakai tanggal string (t.tgl===today()) — rawan bikin transaksi
+  // "hilang" dari tampilan kalau jam device meleset, sama persis seperti bug yang sudah
+  // diperbaiki di sisi Kasir. Sekarang dicocokkan pakai shiftId (ID unik, tidak
+  // terpengaruh jam/tanggal device sama sekali).
+  const bankTrxHari = useMemo(()=>
+    bankShift ? bankTrxList.filter(t=>t.shiftId===bankShift.id) : bankTrxList
+  ,[bankTrxList,bankShift?.id]);
   const bankMasuk   = useMemo(()=>bankTrxHari.filter(t=>t.netNominal>0).reduce((s,t)=>s+t.netNominal,0),[bankTrxHari]);
   const bankKeluar  = useMemo(()=>bankTrxHari.filter(t=>t.netNominal<0).reduce((s,t)=>s+Math.abs(t.netNominal),0),[bankTrxHari]);
 
@@ -1328,6 +1334,27 @@ export default function KasirLite(){
   useEffect(()=>{ try{ if(shift) localStorage.setItem('klite_shift',JSON.stringify(shift)); else localStorage.removeItem('klite_shift'); }catch{} },[shift]);
   useEffect(()=>{ try{ if(bankShift) localStorage.setItem('klite_bankshift',JSON.stringify(bankShift)); else localStorage.removeItem('klite_bankshift'); }catch{} },[bankShift]);
 
+  // PENTING: bankTrxList sebelumnya cuma keisi waktu BUKA shift bank baru.
+  // Kalau halaman di-refresh (bankShift di-restore dari localStorage/database,
+  // bukan lewat "buka shift"), bankTrxList tetap kosong selamanya walau
+  // shift-nya sendiri sebenarnya sudah punya banyak transaksi tersimpan.
+  // Effect ini memastikan transaksi bank selalu ke-load ulang setiap kali
+  // outlet & bankShift aktif, apa pun jalurnya (refresh, restore, buka baru).
+  useEffect(()=>{
+    if(!outlet?.id||!bankShift?.id) return;
+    let alive=true;
+    (async()=>{
+      try{
+        const cutoff=new Date(); cutoff.setDate(cutoff.getDate()-3);
+        const {data:rows}=await supabase.from('bank_transactions').select('*')
+          .eq('outlet_id',outlet.id).gte('created_at',cutoff.toISOString())
+          .order('created_at',{ascending:false}).limit(500);
+        if(alive) setBankTrxList((rows||[]).map(t=>({id:t.id,waktu:t.waktu,tgl:t.tgl,shiftId:t.shift_id,nama:t.nama,jenis:t.jenis,feeType:t.fee_type,fee:t.fee,nominal:t.nominal,netNominal:t.net_nominal,outletId:t.outlet_id})));
+      }catch(e){ console.warn('load bankTrxList gagal:',e); }
+    })();
+    return ()=>{ alive=false; };
+  },[outlet?.id,bankShift?.id]);
+
   // ── Load data awal ──────────────────────────────────────────────────────────
   useEffect(()=>{
     const load=async()=>{
@@ -1395,7 +1422,7 @@ export default function KasirLite(){
       ]);
       if(activeKasir||activeBank){
         if(activeKasir) setShift(activeKasir);
-        if(activeBank) setBankShift(activeBank);
+        if(activeBank) setBankShift(activeBank); // transaksinya otomatis di-load oleh effect terpusat
         setScene("main");
         return;
       }
