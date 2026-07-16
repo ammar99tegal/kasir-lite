@@ -585,7 +585,7 @@ function FormTrxBank({onSave,onCancel,editData}){
   };
 
   return(
-    <Modal title="+ Catat Transaksi" onClose={onCancel}>
+    <Modal title={editData?"✏️ Edit Transaksi":"+ Catat Transaksi"} onClose={onCancel}>
       {/* Nama */}
       <input style={{...inp,fontSize:14,fontWeight:700,textTransform:"uppercase",letterSpacing:.5}} value={nama} onChange={e=>setNama(e.target.value)} placeholder="Contoh: SETORAN PENJUALAN PUSAT"/>
 
@@ -747,7 +747,7 @@ function StokFisikTab({products,stocks,outlet,user,notify}){
 }
 
 // ─── KASIR MAIN ───────────────────────────────────────────────────────────────
-function KasirMain({user,outlet,products,stocks,setStocks,prodOrder=[],aktifProds={},saldoApps=[],shift,onAddTrx,onBukaShift,onTutupShift,onLogout,onMenu,bankShift,bankTrxList,onAddBankTrx,onBukaShiftBank,onTutupBankShift,isGabungan}){
+function KasirMain({user,outlet,products,stocks,setStocks,prodOrder=[],aktifProds={},saldoApps=[],shift,onAddTrx,onBukaShift,onTutupShift,onLogout,onMenu,bankShift,bankTrxList,onAddBankTrx,onUpdateBankTrx,onDeleteBankTrx,onBukaShiftBank,onTutupBankShift,isGabungan}){
   const [tab,setTab]=useState("kasir"); // kasir | bank | riwayat
   const [search,setSearch]=useState("");
   const [cat,setCat]=useState("Semua");
@@ -761,6 +761,7 @@ function KasirMain({user,outlet,products,stocks,setStocks,prodOrder=[],aktifProd
   const [showTutupKasir,setShowTutupKasir]=useState(false);
   const [showTutupBank,setShowTutupBank]=useState(false);
   const [showFormBank,setShowFormBank]=useState(false);
+  const [editingBankTrx,setEditingBankTrx]=useState(null);
   const [showSetorTunai,setShowSetorTunai]=useState(false);
   const [showPinjamVoucher,setShowPinjamVoucher]=useState(false);
   const [txHariIni,setTxHariIni]=useState([]);
@@ -1075,9 +1076,12 @@ function KasirMain({user,outlet,products,stocks,setStocks,prodOrder=[],aktifProd
                   <div style={{fontWeight:700,fontSize:13,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{t.nama}</div>
                   <div style={{fontSize:10,color:C.muted}}>{t.waktu}{t.fee>0&&<span style={{color:C.bank,marginLeft:6}}>+fee {fmtRp(t.fee)}</span>}</div>
                 </div>
-                <div style={{fontWeight:900,fontSize:14,color:t.netNominal>0?"#16a34a":C.danger,flexShrink:0}}>
+                <div style={{fontWeight:900,fontSize:14,color:t.netNominal>0?"#16a34a":C.danger,flexShrink:0,textAlign:"right"}}>
                   {t.netNominal>0?"+":""}{fmtRp(t.netNominal)}
                 </div>
+                <button onClick={()=>{ setEditingBankTrx(t); setShowFormBank(true); }}
+                  style={{background:"none",border:"none",cursor:"pointer",fontSize:15,padding:"4px 2px",flexShrink:0,color:C.muted}}
+                  title="Edit transaksi">✏️</button>
               </div>
             ))
           }
@@ -1248,9 +1252,20 @@ function KasirMain({user,outlet,products,stocks,setStocks,prodOrder=[],aktifProd
         <TutupShiftBank shift={bankShift} trxList={bankTrxList} onTutup={onTutupBankShift} onCancel={()=>setShowTutupBank(false)}/>
       )}
 
-      {/* Modal Catat Transaksi Bank */}
+      {/* Modal Catat / Edit Transaksi Bank */}
       {showFormBank&&(
-        <FormTrxBank onSave={async(data)=>{await onAddBankTrx(data);setShowFormBank(false);}} onCancel={()=>setShowFormBank(false)}/>
+        <FormTrxBank
+          editData={editingBankTrx}
+          onSave={async(data)=>{
+            if(editingBankTrx){
+              await onUpdateBankTrx(editingBankTrx.id, data[0]);
+            } else {
+              await onAddBankTrx(data);
+            }
+            setShowFormBank(false); setEditingBankTrx(null);
+          }}
+          onCancel={()=>{ setShowFormBank(false); setEditingBankTrx(null); }}
+        />
       )}
 
       {/* Modal Setor Tunai */}
@@ -1497,15 +1512,31 @@ export default function KasirLite(){
     const arr = Array.isArray(dataOrArr)?dataOrArr:[dataOrArr];
     for(const data of arr){
       const row={id:uid(),waktu:now(),tgl:today(),outletId:outlet.id,shiftId:bankShift?.id,...data};
-      await supabase.from('bank_transactions').insert({
+      const {error}=await supabase.from('bank_transactions').insert({
         id:row.id, waktu:row.waktu, tgl:row.tgl,
         outlet_id:outlet.id, shift_id:bankShift?.id,
         nama:data.nama, jenis:data.jenis, fee_type:data.feeType,
         fee:data.fee, nominal:data.nominal, net_nominal:data.netNominal,
       });
+      if(error){ alert("Gagal simpan transaksi bank: "+error.message); continue; }
       setBankTrxList(prev=>prev.find(x=>x.id===row.id)?prev:[row,...prev]);
     }
   },[outlet,bankShift]);
+
+  const handleUpdateBankTrx=useCallback(async(id,data)=>{
+    const {error}=await supabase.from('bank_transactions').update({
+      nama:data.nama, jenis:data.jenis, fee_type:data.feeType,
+      fee:data.fee, nominal:data.nominal, net_nominal:data.netNominal,
+    }).eq('id',id);
+    if(error){ alert("Gagal update transaksi bank: "+error.message); return; }
+    setBankTrxList(prev=>prev.map(t=>t.id===id?{...t,...data}:t));
+  },[]);
+
+  const handleDeleteBankTrx=useCallback(async(id)=>{
+    const {error}=await supabase.from('bank_transactions').delete().eq('id',id);
+    if(error){ alert("Gagal hapus transaksi bank: "+error.message); return; }
+    setBankTrxList(prev=>prev.filter(t=>t.id!==id));
+  },[]);
 
   // ── Render ──────────────────────────────────────────────────────────────────
   if(loading) return(
@@ -1589,7 +1620,8 @@ export default function KasirLite(){
       onLogout={()=>{ setUser(null); setShift(null); setBankShift(null); setOutlet(null); setModeGabungan(false); try{['klite_user','klite_outlet','klite_shift','klite_bankshift','klite_mode'].forEach(k=>localStorage.removeItem(k));}catch{} setScene("login"); }}
       onMenu={()=>setScene("pilih_outlet")}
       bankShift={bankShift} bankTrxList={bankTrxList}
-      onAddBankTrx={handleAddBankTrx} onBukaShiftBank={handleBukaShiftBank} onTutupBankShift={handleTutupShiftBank}
+      onAddBankTrx={handleAddBankTrx} onUpdateBankTrx={handleUpdateBankTrx} onDeleteBankTrx={handleDeleteBankTrx}
+      onBukaShiftBank={handleBukaShiftBank} onTutupBankShift={handleTutupShiftBank}
       isGabungan={isGabungan}
     />
   );
