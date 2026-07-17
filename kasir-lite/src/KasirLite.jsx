@@ -1308,6 +1308,43 @@ export default function KasirLite(){
   const [loading, setLoading] = useState(true);
   const [dbErr,   setDbErr]   = useState("");
 
+  // Sinkronisasi stok lintas device — sebelumnya stok cuma di-load 1 kali waktu
+  // buka aplikasi, jadi kalau ada penjualan dari device/aplikasi lain (termasuk
+  // Ammar Cell), Kasir Lite tidak akan pernah tahu sampai direfresh manual.
+  // Sekarang: (1) realtime listener untuk update instan, (2) fallback refetch
+  // saat tab/tablet kembali aktif, jaga-jaga kalau realtime sempat terputus
+  // (umum terjadi di tablet waktu layar mati/idle).
+  useEffect(()=>{
+    const refetchStocks = async()=>{
+      try{
+        const stks = await db.getStocks();
+        setStocks(stks);
+      }catch(e){ console.warn('refetch stocks gagal:',e); }
+    };
+    const ch = supabase.channel('klite-realtime-stocks')
+      .on('postgres_changes',{event:'*',schema:'public',table:'stocks'},(payload)=>{
+        const row = payload.new||payload.old;
+        if(!row) return;
+        if(payload.eventType==='DELETE'){
+          setStocks(prev=>{
+            const s={...prev};
+            if(s[row.outlet_id]){ s[row.outlet_id]={...s[row.outlet_id]}; delete s[row.outlet_id][row.product_id]; }
+            return s;
+          });
+        } else {
+          setStocks(prev=>({...prev,[row.outlet_id]:{...(prev[row.outlet_id]||{}),[row.product_id]:row.qty??0}}));
+        }
+      }).subscribe();
+    const onVisible=()=>{ if(document.visibilityState==='visible') refetchStocks(); };
+    document.addEventListener('visibilitychange', onVisible);
+    window.addEventListener('focus', refetchStocks);
+    return ()=>{
+      supabase.removeChannel(ch);
+      document.removeEventListener('visibilitychange', onVisible);
+      window.removeEventListener('focus', refetchStocks);
+    };
+  },[]);
+
   // Restore session dari localStorage saat refresh
   const [user,    setUser]    = useState(()=>{ try{ const s=localStorage.getItem('klite_user'); return s?JSON.parse(s):null; }catch{ return null; }});
   const [outlet,  setOutlet]  = useState(()=>{ try{ const s=localStorage.getItem('klite_outlet'); return s?JSON.parse(s):null; }catch{ return null; }});
